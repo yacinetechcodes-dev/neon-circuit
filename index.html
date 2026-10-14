@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#050818">
+  <title>Neon Circuit</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game" width="960" height="540" tabindex="0" aria-label="Neon Circuit game"></canvas>
+  <noscript>Neon Circuit needs JavaScript enabled.</noscript>
+
+  <!-- Engine (order matters) -->
+  <script src="core/util.js"></script>
+  <script src="core/sfx.js"></script>
+  <script src="core/registry.js"></script>
+  <script src="core/input.js"></script>
+  <script src="core/save.js"></script>
+  <script src="core/particles.js"></script>
+  <script src="core/camera.js"></script>
+  <script src="core/level.js"></script>
+  <script src="core/physics.js"></script>
+  <script src="core/render.js"></script>
+  <script src="core/world.js"></script>
+  <script src="core/ui.js"></script>
+  <script src="core/engine.js"></script>
+
+  <!-- Manifests: list the entity + level files to load -->
+  <script src="entities/index.js"></script>
+  <script src="levels/index.js"></script>
+
+  <!-- Loads everything listed above, validates levels, starts the game -->
+  <script src="core/loader.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #02030a;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game {
+  display: block;
+  background: #050818;
+  outline: none;
+  box-shadow: 0 0 60px rgba(0, 240, 255, 0.08);
+  image-rendering: auto;
+}
+
+noscript {
+  color: #00f0ff;
+  font-family: monospace;
+}
