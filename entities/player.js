@@ -64,6 +64,10 @@ class Player {
     for (const o of world.entities) if (o.name === "placedBlock") o.dead = true; // one at a time
     const b = world.spawn("placedBlock", cell.x, cell.y, {});
     if (!b) return;
+    // Solid right away (the solid list is otherwise rebuilt next frame, and
+    // falling into it this frame would push you off its side).
+    b.active = true;
+    if (!world.solids.includes(b)) world.solids.push(b);
     // Mid-air: land on it straight away (the block appears under your feet,
     // so you never get pushed off its side).
     if (!this.onGround) {
