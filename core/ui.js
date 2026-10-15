@@ -82,17 +82,19 @@ const UI = {
 
     // Lives (per attempt): small visor icons, dim when lost.
     const lx = cx + 178;
-    this.panel(ctx, lx, 12, 76, 34, th.accent, 0.6);
-    for (let i = 0; i < 3; i++) {
-      const on = i < (world.lives == null ? 3 : world.lives);
-      ctx.fillStyle = on ? "#14203c" : "#0c1222";
+    this.panel(ctx, lx, 12, 120, 34, th.accent, 0.6);
+    for (let i = 0; i < 5; i++) {
+      const on = i < (world.lives == null ? 5 : world.lives);
+      ctx.fillStyle = on ? "#3a4f86" : "#0c1222";
       U.roundRect(ctx, lx + 8 + i * 22, 20, 16, 18, 4); ctx.fill();
+      ctx.strokeStyle = on ? "#9fdcff" : "#1c2a40"; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.fillStyle = on ? "#00f0ff" : "#1c2a40";
       ctx.fillRect(lx + 11 + i * 22, 25, 10, 3);
     }
 
     // Level name + time.
-    this.text(ctx, world.def.name.toUpperCase(), VIEW_W / 2, 30, { size: 14, align: "center", color: U.mix(th.accent, "#ffffff", 0.45), glow: "#000000" });
+    const sec = world.sections && world.sections[world.sectionIdx];
+    this.text(ctx, (sec ? sec.name : world.def.name).toUpperCase(), VIEW_W / 2 + 60, 30, { size: 14, align: "center", color: U.mix(th.accent, "#ffffff", 0.45), glow: "#000000" });
     this.panel(ctx, VIEW_W - 132, 12, 120, 34, th.accent, 0.6);
     this.text(ctx, U.fmtTime(world.levelTime / FPS), VIEW_W - 72, 35, { size: 15, align: "center" });
 

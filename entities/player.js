@@ -18,7 +18,7 @@ class Player {
     this.weaponIdx = Math.max(0, this.weapons.indexOf(weapon));
     this.ammo = {}; this.ammoT = {};
     for (const w of this.weapons) this.refill(w);
-    this.maxHp = 3 + (this.has("hpUp") ? 1 : 0);
+    this.maxHp = 3;   // the World sets the real value (3, +1 every 2 worlds)
     this.powers = { shield: 0, magnet: 0, speed: 0 };
     this.sudoCool = 0; this.killCool = 0;
     this.pipeA = null; this.pipeB = null;   // Pipe ends (world 6)

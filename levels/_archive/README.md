@@ -1,5 +1,9 @@
 # Archived levels (not loaded)
 
+Each world is now a single long level (`levels/worldNN/world.js`). The original five levels
+of every world are kept here in `worldNN/level01.js` … `level05.js`; the world levels were built
+from their best parts. The same rules apply to them as to the files below: nothing here loads.
+
 These five levels are not in any world, so the game never loads them. Keep them
 as raw material for future worlds: copy a file into `levels/worldNN/`, give it a
 new `id`, list it in that world's `levels`, and adapt it to the world's theme,

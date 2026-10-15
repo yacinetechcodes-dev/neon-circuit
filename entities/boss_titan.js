@@ -6,9 +6,10 @@
  *   Phase 1  wrecking-ball floor sweeps (jump them), rocket rain, stomp waves
  *   Phase 2  + scrap crawlers join, falling debris
  *   Phase 3  + fire vents erupt across the floor, faster everything
- * After each attack string it OVERHEATS: it stalls and the furnace opens —
- * stomp, shoot, rocket or dash it then. Ground Slam near it while it's
- * overheated knocks it off balance (the hit counts double).
+ * Unique mechanic: crack both SMOKESTACKS (a rocket hit or a Ground Slam
+ * landing on it cracks one) and it OVERHEATS: it stalls and the furnace
+ * opens — stomp, shoot, rocket or dash it. A Ground Slam while it's
+ * overheated counts double. 9 hits (3 per phase).
  * Repair capsules drop at each phase start and every ~14 s.
  *
  * overrides: hp (multiple of 3), title, arena: [col, row, cols, rows]
@@ -16,11 +17,11 @@
 "use strict";
 
 registerEntity("wreckerTitan", {
-  info: { name: "Wrecker Titan", desc: "Hit it while it overheats (its furnace opens)." },
+  info: { name: "Wrecker Titan", desc: "Crack both smokestacks (rockets or Slam), then hit the furnace." },
   size: [160, 128],
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,
-    hp: 24, title: "WRECKER TITAN", color: "#ff6a1a",
+    hp: 9, title: "WRECKER TITAN", color: "#ff6a1a",
     stompable: (e) => (e.mode === "overheat" ? true : "bounce"),
     shootable: (e) => e.mode === "overheat",
     dashable: (e) => e.mode === "overheat",
@@ -34,13 +35,13 @@ registerEntity("wreckerTitan", {
   onRespawn(e) {
     e.x = e.home.x; e.y = e.home.y;
     e.hp = e.maxHp; e.mode = "sleep"; e.timer = 0; e.step = 0; e.phase = 1;
-    e.healT = 0; e.sweeps = 0; e.ball = null; e.heat = 0; e.dir = -1;
+    e.healT = 0; e.sweeps = 0; e.ball = null; e.heat = 0; e.dir = -1; e.stacks = [false, false];
   },
   phaseOf(e) { const q = e.maxHp / 3; return e.hp > q * 2 ? 1 : e.hp > q ? 2 : 3; },
   pattern(e) {
-    if (e.phase === 1) return ["sweep", "rockets", "stomp", "overheat"];
-    if (e.phase === 2) return ["crawlers", "sweep", "debris", "stomp", "overheat"];
-    return ["vents", "sweep", "rockets", "debris", "vents", "overheat"];
+    if (e.phase === 1) return ["sweep", "rockets", "stomp"];
+    if (e.phase === 2) return ["crawlers", "sweep", "debris"];
+    return ["vents", "sweep", "rockets"];
   },
   next(e) { const pat = this.pattern(e); e.mode = pat[e.step % pat.length]; e.step++; e.timer = 0; e.sweeps = e.phase === 3 ? 3 : 2; },
   rest(e, f) { e.mode = "rest"; e.timer = f; },
@@ -187,7 +188,7 @@ registerEntity("wreckerTitan", {
         e.heat = Math.min(1, e.timer / 20);
         const openFor = [230, 200, 170][e.phase - 1];
         if (world.time % 4 === 0) world.particles.emit(U.cx(e) + U.rand(-30, 30), e.y + 40, { vy: -2, life: 30, size: 4, color: "#ffb347", glow: true });
-        if (e.timer > openFor) { e.heat = 0; this.rest(e, 30); }
+        if (e.timer > openFor) { e.heat = 0; e.stacks = [false, false]; this.rest(e, 30); }
         return;
       }
 
@@ -203,6 +204,20 @@ registerEntity("wreckerTitan", {
   },
 
   onDamage(e, world, amount, source) {
+    // Not overheated: rockets and Ground Slams crack a smokestack instead.
+    if (e.mode !== "overheat" && ["rocket", "slam"].includes(source) && !["sleep", "intro", "dying"].includes(e.mode)) {
+      if (e.iframes > 0) return false;
+      const i = e.stacks[0] ? 1 : 0;
+      if (e.stacks[i]) return false;
+      e.stacks[i] = true; e.iframes = 20; e.flash = 6;
+      world.particles.burst(e.x + (i ? 59 : 35), e.y + 4, 20, "#ffb347", 5, { glow: true });
+      world.camera.shake(6); sfx.play("crumble");
+      if (e.stacks[0] && e.stacks[1]) {
+        e.mode = "overheat"; e.timer = 0; e.ball = null;
+        world.showHint("OVERHEATED! Hit the furnace");
+      } else if (!Save.seen("titanStack")) { Save.markSeen("titanStack"); world.showHint("One more smokestack!"); }
+      return true;
+    }
     if (e.mode !== "overheat" || e.iframes > 0) return false;
     e.hp -= source === "slam" ? 2 : 1; e.flash = 10; e.iframes = 22;
     world.camera.shake(8); sfx.play("bossHit");
@@ -216,7 +231,7 @@ registerEntity("wreckerTitan", {
     }
     const ph = this.phaseOf(e);
     if (ph !== e.phase) {
-      e.phase = ph; e.step = 0; e.heat = 0; this.rest(e, 40);
+      e.phase = ph; e.step = 0; e.heat = 0; e.stacks = [false, false]; this.rest(e, 40);
       this.dropHealth(e, world); e.healT = 0;
       world.banner = { text: `PHASE ${ph}`, sub: "", t: 90, max: 90, color: ph === 3 ? "#ff3355" : "#ffb347" };
     }
@@ -245,6 +260,14 @@ registerEntity("wreckerTitan", {
     // Smokestacks.
     ctx.fillStyle = "#3a302a"; ctx.fillRect(x + 28, y, 14, 38); ctx.fillRect(x + 52, y + 8, 14, 30);
     ctx.fillStyle = "#ff6a1a"; ctx.fillRect(x + 28, y, 14, 4); ctx.fillRect(x + 52, y + 8, 14, 4);
+    // Cracked smokestacks glow (both cracked = overheat).
+    (e.stacks || []).forEach((c, i) => {
+      if (!c) return;
+      const sx = x + (i ? 52 : 28), sy = y + (i ? 8 : 0);
+      ctx.strokeStyle = "#ffe08a"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(sx + 3, sy + 6); ctx.lineTo(sx + 9, sy + 14); ctx.lineTo(sx + 4, sy + 22); ctx.lineTo(sx + 11, sy + 30); ctx.stroke();
+      U.glow(ctx, sx + 7, sy + 16, 18, "#ffb347", 0.6);
+    });
     // Crane arm.
     ctx.strokeStyle = "#5d5550"; ctx.lineWidth = 6;
     ctx.beginPath(); ctx.moveTo(x + e.w - 30, y + 40); ctx.lineTo(x + e.w - 4, y + 6); ctx.lineTo(x + e.w + 26, y + 14); ctx.stroke();

@@ -8,6 +8,7 @@
  *   Phase 3  + kernel panic: radial bursts with one safe gap; its shield stays
  *            up while it dumps — stomp it, or use Sudo to shoot through
  * After each attack string it CORE DUMPs: it sinks to the floor and opens.
+ * 12 hits (4 per phase); the phase-3 shield is its unique twist (Sudo).
  * Repair capsules drop at each phase start and every ~14 s.
  *
  * overrides: hp (multiple of 3), title, arena: [col, row, cols, rows]
@@ -15,11 +16,11 @@
 "use strict";
 
 registerEntity("kernelCore", {
-  info: { name: "Kernel Core", desc: "Hit the core while it dumps; in phase 3 stomp it or use Sudo." },
+  info: { name: "Kernel Core", desc: "Hit the core when it dumps. Phase 3: Sudo through its shield." },
   size: [112, 112],
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,
-    hp: 30, title: "KERNEL CORE", color: "#fcaf3e",
+    hp: 12, title: "KERNEL CORE", color: "#fcaf3e",
     stompable: (e) => (e.mode === "dump" && e.open ? true : "bounce"),
     shootable: (e) => e.mode === "dump" && e.open,
     dashable: (e) => e.mode === "dump" && e.open,
@@ -40,9 +41,9 @@ registerEntity("kernelCore", {
   },
   phaseOf(e) { const q = e.maxHp / 3; return e.hp > q * 2 ? 1 : e.hp > q ? 2 : 3; },
   pattern(e) {
-    if (e.phase === 1) return ["volley", "syscall", "volley", "dump"];
-    if (e.phase === 2) return ["leak", "volley", "syscall", "fork", "dump"];
-    return ["panic", "syscall", "volley", "fork", "panic", "dump"];
+    if (e.phase === 1) return ["volley", "syscall", "dump"];
+    if (e.phase === 2) return ["leak", "volley", "dump"];
+    return ["panic", "fork", "dump"];
   },
   next(e) { const pat = this.pattern(e); e.mode = pat[e.step % pat.length]; e.step++; e.timer = 0; e.reps = e.phase === 3 ? 4 : 3; },
   rest(e, f) { e.mode = "rest"; e.timer = f; e.open = false; },

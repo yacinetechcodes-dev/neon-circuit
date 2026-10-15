@@ -2,23 +2,23 @@
  * entities/boss_glitchking.js — GLITCH KING (World 3 boss)
  *
  * A big blocky king made of squares.
- *   Phase 1  hops (shockwaves on landing), tosses bouncing squares
- *   Phase 2  + SPLIT: breaks into four shards that orbit, then dash at you
- *   Phase 3  + PIXEL RAIN, faster everything
- * After each attack string it gets DAZED: the crown lifts off and its core
- * is open — stomp, shoot, dash or bomb it. Repair capsules drop at the start
- * of each phase and every ~14 s during the fight.
+ *   Phase 1  hops (shockwaves on landing), tosses bouncing squares, then DAZED
+ *   Phase 2  SPLIT: four shards orbit, then dash at you — ONE wears the crown.
+ *            Hit the crowned shard and the King falls back together dazed.
+ *   Phase 3  + PIXEL RAIN, faster shards
+ * Dazed = crown lifted, core open: stomp, shoot, dash or bomb it. 9 hits
+ * (3 per phase). Repair capsules at each phase start and every ~14 s.
  *
  * overrides: hp (multiple of 3), title, arena: [col, row, cols, rows]
  * ========================================================================= */
 "use strict";
 
 registerEntity("glitchKing", {
-  info: { name: "Glitch King", desc: "Strike while it's dazed." },
+  info: { name: "Glitch King", desc: "When it splits, hit the shard with the crown." },
   size: [96, 88],
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,
-    hp: 18, title: "GLITCH KING", color: PICO.yellow,
+    hp: 9, title: "GLITCH KING", color: PICO.yellow,
     stompable: (e) => (e.mode === "daze" ? true : "bounce"),
     shootable: (e) => e.mode === "daze",
     dashable: (e) => e.mode === "daze",
@@ -38,9 +38,9 @@ registerEntity("glitchKing", {
   },
   phaseOf(e) { const q = e.maxHp / 3; return e.hp > q * 2 ? 1 : e.hp > q ? 2 : 3; },
   pattern(e) {
-    if (e.phase === 1) return ["hop", "toss", "hop", "daze"];
-    if (e.phase === 2) return ["split", "hop", "toss", "daze"];
-    return ["split", "rain", "hop", "rain", "toss", "daze"];
+    if (e.phase === 1) return ["hop", "toss", "daze"];
+    if (e.phase === 2) return ["split", "hop", "toss"];
+    return ["rain", "split", "hop"];
   },
   next(e) {
     const pat = this.pattern(e);
@@ -137,10 +137,12 @@ registerEntity("glitchKing", {
           e.hidden = true;
           e.shards = [];
           const sx = U.cx(e) - 15, sy = U.cy(e) - 15;
+          const real = Math.floor(Math.random() * 4);
           for (let i = 0; i < 4; i++) {
             const s = world.spawn("kingShard", sx, sy, {});
-            if (s) { s.transient = true; s.slot = i; s.mode = "orbit"; e.shards.push(s); }
+            if (s) { s.transient = true; s.slot = i; s.mode = "orbit"; s.king = e; s.real = i === real; e.shards.push(s); }
           }
+          if (!Save.seen("crownShard")) { Save.markSeen("crownShard"); world.showHint("Hit the shard with the crown"); }
           world.camera.shake(8); sfx.play("glitch");
           e.y = -4000; // body is gone while the shards fly
         }
@@ -217,6 +219,17 @@ registerEntity("glitchKing", {
     }
   },
 
+  /** The crowned shard was hit: the King falls back together, dazed. */
+  crownHit(e, world, shard) {
+    for (const s of e.shards) { if (!s.dead) world.particles.burst(U.cx(s), U.cy(s), 10, PICO.yellow, 3, { shape: "square" }); s.dead = true; }
+    e.shards = [];
+    e.hidden = false;
+    e.x = U.clamp(U.cx(shard) - e.w / 2, e.arena.x + TILE, e.arena.x + e.arena.w - TILE - e.w);
+    e.y = e.floorY - e.h - 40; e.vx = 0; e.vy = 0;
+    e.mode = "daze"; e.timer = 0;
+    world.camera.shake(10); sfx.play("glitch");
+  },
+
   onDamage(e, world) {
     if (e.mode !== "daze" || e.iframes > 0) return false;
     e.hp -= 1; e.flash = 10; e.iframes = 22;
@@ -289,13 +302,26 @@ registerEntity("glitchKing", {
 registerEntity("kingShard", {
   size: [30, 30],
   layer: 2,
-  props: { transient: true, alwaysActive: true, alwaysDraw: true, hurts: true },
+  props: { transient: true, alwaysActive: true, alwaysDraw: true, hurts: true, enemy: true, stompable: true, shootable: true, dashable: true, hp: 1, color: PICO.plum },
+  // Hitting a decoy shatters it; hitting the crowned one dazes the King.
+  onDamage(e, world) {
+    if (e.dead) return false;
+    if (e.real && e.king && !e.king.dead) { e.king.def.crownHit(e.king, world, e); return true; }
+    e.dead = true;
+    world.particles.burst(U.cx(e), U.cy(e), 12, PICO.plum, 4, { shape: "square" });
+    sfx.play("glitch");
+    return true;
+  },
   draw(e, ctx, world) {
     const flash = e.flashT && Math.floor(world.time / 4) % 2;
     const x = Math.round(e.x / 2) * 2, y = Math.round(e.y / 2) * 2;
     ctx.fillStyle = flash ? PICO.white : PICO.plum; ctx.fillRect(x, y, 30, 30);
     ctx.fillStyle = PICO.yellow; ctx.fillRect(x, y, 30, 4); ctx.fillRect(x, y, 4, 30);
     ctx.fillStyle = flash ? PICO.red : PICO.orange; ctx.fillRect(x + 11, y + 11, 8, 8);
+    if (e.real) {   // the crown: three gold squares on top
+      ctx.fillStyle = PICO.yellow;
+      ctx.fillRect(x + 2, y - 8, 6, 8); ctx.fillRect(x + 12, y - 10, 6, 10); ctx.fillRect(x + 22, y - 8, 6, 8);
+    }
   },
 });
 

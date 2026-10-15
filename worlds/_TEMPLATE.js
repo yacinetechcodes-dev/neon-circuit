@@ -2,9 +2,9 @@
  * worlds/_TEMPLATE.js — copy this file to make a new world.
  *
  *   1. Copy it to worlds/world02.js and fill in the fields below (pure data).
- *   2. Create the folder levels/world02/ and put its level files there
- *      (each one made from levels/_TEMPLATE.js). Level ids must be unique
- *      inside the world.
+ *   2. Create the folder levels/world02/ and put the world's single long
+ *      level there as world.js (made from levels/_TEMPLATE.js), split into
+ *      named sections.
  *   3. Add "world02.js" to WORLD_FILES in worlds/index.js.
  *
  * A world unlocks once the previous world's boss is beaten. Abilities and
@@ -32,11 +32,12 @@ registerWorld({
     skins: {},
   },
 
-  // Level files in play order (inside levels/<folder>/).
-  levels: ["level01.js"],
+  // The world's level file (inside levels/<folder>/): one long level with
+  // sections. A list still works, but one file per world is the standard.
+  levels: ["world.js"],
 
   // Abilities this world teaches. Grant each one through a level's `unlocks`.
-  // Known: "doubleJump", "dash", "pulse" (gives the Pulse Blaster), "hpUp"
+  // Known: "doubleJump", "dash", "pulse" (gives the Pulse Blaster)
   abilities: [],
 
   // Enemy and hazard types this world uses (entity names). The validator
@@ -46,10 +47,10 @@ registerWorld({
 
   // The world boss: the level file it is in, and its entity name. Finishing
   // that level unlocks the next world.
-  boss: { level: "level05.js", entity: "warden" },
+  boss: { level: "world.js", entity: "warden" },
 
-  // Weapons: owned from the start of the world, and awarded for finishing a
-  // level (keyed by level file). Weapons can also be placed in maps:
-  // "weapon:arcCannon".
-  weapons: { start: [], rewards: { "level01.js": ["scatterBurst"] } },
+  // Weapons: owned from the start of the world, and awarded for finishing
+  // the level (keyed by level file). Mid-level weapons go in the map as
+  // pickups: "weapon:arcCannon".
+  weapons: { start: [], rewards: { "world.js": ["scatterBurst"] } },
 });

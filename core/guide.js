@@ -59,7 +59,7 @@ const Guide = {
         this.tip(world, `${info.name}: ${info.desc}`, "meet_" + e.name);
       }
     }
-    if (!world.hint && world.tips && world.tips.length && !world.cutscene) world.showHint(world.tips.shift(), 4);
+    if (!world.hint && world.tips && world.tips.length && !world.cutscene) world.showHint(world.tips.shift());
   },
 
   /** Level start: objective under the title, intros for anything new. */
@@ -76,14 +76,14 @@ const Guide = {
       this.discover("a:" + k);
       const inf = UPGRADE_INFO[k];
       if (inf.world && inf.world !== wid) { Save.markSeen("ability_" + k); continue; }
-      this.tip(world, `NEW ABILITY ${inf.name}: ${inf.desc} (${inf.how})`, "ability_" + k);
+      this.tip(world, `NEW: ${inf.name}  ${inf.how}`, "ability_" + k);
     }
     for (const name of p.weapons) {
       const d = Weapons.get(name);
       if (!d) continue;
       this.discover("w:" + name);
       if (!rewards.includes(name)) { Save.markSeen("weapon_" + name); continue; }
-      this.tip(world, `NEW WEAPON ${d.label}: ${d.desc || ""} {shoot} fire · {swap} switch`, "weapon_" + name);
+      this.tip(world, `NEW: ${d.label}  {shoot} fire, {swap} switch`, "weapon_" + name);
     }
   },
 
@@ -100,7 +100,7 @@ const Guide = {
   },
 
   // ---------------------------------------------------------------- codex
-  TABS: ["TIPS", "ENEMIES", "HAZARDS", "BOSSES", "WEAPONS", "ABILITIES", "ITEMS"],
+  TABS: ["TIPS", "ENEMIES", "HAZARDS", "BOSSES", "WEAPONS", "ABILITIES", "ITEMS", "LOGS"],
 
   /** Codex entries for a tab: [{ name, desc, icon(ctx, cx, cy) }] plus how many exist. */
   entries(tab) {
@@ -115,6 +115,14 @@ const Guide = {
       case "TIPS": {
         const all = this.hints();
         return { total: all.length, list: all.filter((h) => Save.seen(h.key)).map((h) => ({ name: "", desc: UI.keys(h.text), icon: (ctx, x, y) => PowerIcon(ctx, "pulse", x, y, "#00f0ff") })) };
+      }
+      case "LOGS": {
+        // Signs read in the worlds (re-readable here).
+        const keys = Object.keys((Save.data && Save.data.codex) || {}).filter((k) => k.startsWith("n:"));
+        return { total: keys.length, list: keys.map((k) => {
+          const [, wid, ...rest] = k.split(":");
+          return { name: `WORLD ${wid}`, desc: rest.join(":"), icon: (ctx, x, y) => PowerIcon(ctx, "pulse", x, y, "#a8c8e0") };
+        }) };
       }
       case "ENEMIES": return ent((d) => isEnemy(d) && !isBoss(d));
       case "BOSSES": return ent((d) => isBoss(d));

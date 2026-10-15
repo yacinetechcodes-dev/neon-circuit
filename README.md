@@ -4,67 +4,90 @@ A sci-fi/cyber 2D platformer in plain HTML5 Canvas + vanilla JavaScript.
 No libraries, no build step, no asset files, no music. **Double-click `index.html` to play.**
 Progress is saved in `localStorage`.
 
-Six worlds of five levels each; each world ends with a boss and unlocks the next one.
-Abilities and weapons carry over from world to world.
+Six worlds, each **one long level** (about 10-15 minutes) split into named sections that build
+up: new mechanics one at a time, then combined, a mid-level challenge, a final stretch, and the
+boss. Beating a world's boss unlocks the next world. Abilities and weapons carry over.
+
+**Lives and checkpoints.** Each attempt at a world gives you **5 lives** (shown in the HUD).
+Checkpoints are frequent (never more than ~40 tiles apart, several before every boss); dying
+puts you back at the last one and costs a life. Lose all five and the world restarts from the
+beginning with 5 fresh lives. Sections you've reached can be picked from the world's section
+list to practise them.
+
+**Health** is 3 points in Worlds 1-2, 4 in Worlds 3-4 and 5 in Worlds 5-6 (+1 every two worlds,
+kept for good). Health pickups appear along the way and during boss fights.
+
+**Bosses** each have one mechanic of their own, a readable pattern, two or three short phases that
+look different, telegraphed attacks, a health bar, a name card and health drops. A fight takes
+about a minute to a minute and a half.
+
+**Text** is short and stays on screen long enough to read (1.5 s + 0.4 s per word). It never
+stops play except for an important new mechanic. Signs along the way tell a little of each
+world's story; every sign and tip can be re-read in **Help / Codex** (signs are in the LOGS tab).
 
 ## World 1: Tutorial World
 
-| # | Level | New idea |
+| Section | Kind | What's in it |
 | --- | --- | --- |
-| 1 | Boot Sector | basics: run, jump, cores, checkpoints |
-| 2 | Data Stream | double jump, wall-jump, moving platforms, drones |
-| 3 | Server Core | dash, lasers, crushers, turrets — **Core Warden** mini-boss |
-| 4 | Orbital Station | low gravity, falling platforms, dash crystals, all enemies |
-| 5 | The Mainframe | gauntlet, **Warden Mk-II**, three-phase **Mainframe** |
+| Boot Sector | intro | run, jump, cores, checkpoints |
+| Data Stream | intro | double jump, wall-jump, moving platforms, drones |
+| Server Core | combine | dash, lasers, crushers, turrets |
+| Warden's Gate | challenge | the **Core Warden** mini-boss |
+| Orbital Station | combine | low gravity, falling platforms, dash crystals |
+| Final Approach | combine | everything at once |
+| The Mainframe | boss | **Mainframe**: hit its core while it is down and exposed |
 
-The old levels 6-10 (Firewall Run, Gravity Lab, Quantum Maze, Overclock Tower, Core Meltdown)
-live in `levels/_archive/`; several later-world levels are adapted from them.
+Weapons found in the level: Arc Cannon, Scatter Burst (the Pulse Blaster comes with the Pulse ability).
+The old levels 6-10 live in `levels/_archive/`; several sections in later worlds are adapted from them.
 
 ## World 2: Hacking World
 
-Unlocks after World 1's boss. Terminal green, falling code, file-system corridors, glitches.
+Terminal green, falling code, file-system corridors, glitches.
 
-| # | Level | New idea |
+| Section | Kind | What's in it |
 | --- | --- | --- |
-| 1 | Login Shell | glitch blocks, antivirus drones, bug crawlers, trojans — **Data Dash** |
-| 2 | Firewall Run | laser firewalls, timed gates — **Freeze Process** |
-| 3 | File System | symlink pads, permission doors, locked gates — **Root Access**; earns the **Virus Launcher** |
-| 4 | Bit Flip | gravity-flip and overclock zones |
-| 5 | Root Directory | every mechanic, then the three-phase **Admin Daemon** |
+| Login Shell | intro | glitch blocks, antivirus drones, bug crawlers, trojans |
+| Data Dash | intro | **Data Dash**: dash through firewall walls |
+| Firewall Run | intro | laser firewalls, timed gates; **Freeze Process** |
+| File System | combine | symlink pads, permission doors, locked gates; **Root Access**, **Virus Launcher** |
+| Bit Flip | challenge | gravity-flip and overclock zones |
+| Kernel Panic | combine | everything at once |
+| Root Directory | boss | **Admin Daemon**: freeze it to lock its shell open, then shoot (it also opens while compiling) |
 
 Data Dash makes the dash untouchable and lets it phase through firewall walls. Freeze Process
-(R) stops enemies and moving hazards for 3 s. Root Access opens locked gates — including the
-vault in level 1, so it's worth a revisit. Trojans look like repair kits; watch for the glitch.
+(R) stops enemies and moving hazards for 3 s. Root Access opens locked gates. Trojans look like
+repair kits; watch for the glitch.
 
 ## World 3: Pixel World
 
-Unlocks after World 2's boss; a step up in difficulty. Retro 8-bit: chunky pixels, a PICO-8 palette.
+Retro 8-bit: chunky pixels, a PICO-8 palette. Ends with a tall castle climb.
 
-| # | Level | New idea |
+| Section | Kind | What's in it |
 | --- | --- | --- |
-| 1 | Press Start | pixel slimes (they split), block bats, disappearing blocks — **Pixel Shrink** |
-| 2 | Brick Bridges | chasms too wide to jump, moving pixel walls, spike floors — **Block Place** |
-| 3 | Pixel Caves | crawlspaces with tiny slimes, low pixel-wall corridors — **Rewind**; earns the **Pixel Bomb** |
-| 4 | Sky Fortress | everything combined, bouncing squares overhead |
-| 5 | Glitch Castle | a 100-row tower climb (from the archived Overclock Tower), then the three-phase **Glitch King** |
+| Press Start | intro | pixel slimes (they split), block bats, disappearing blocks; **Pixel Shrink** |
+| Brick Bridges | intro | chasms too wide to jump; **Block Place** |
+| Pixel Caves | intro | crawlspaces, low pixel-wall corridors; **Rewind**, **Pixel Bomb** |
+| Sky Fortress | challenge | everything combined, bouncing squares overhead |
+| Last Stretch | combine | everything at once |
+| Glitch Castle | boss | a 100-row tower climb, then the **Glitch King**: when it splits, hit the shard with the crown |
 
 Pixel Shrink (T) makes you tiny enough for half-height crawlspaces (no shooting while tiny).
 Block Place (B) drops a block under your feet in mid-air, or in front of you on the ground; it lasts 4 s.
-Rewind is automatic: the first death in a level jumps you back to a safe spot from ~2 s earlier.
+Rewind is automatic: the first death jumps you back to a safe spot from ~2 s earlier, without losing a life.
 
 ## World 4: Windows 10 World
 
-Unlocks after World 3's boss; harder again. A parody desktop: every window, button, folder and
-loading circle is a plain original shape (no real logos, icons or trademarks). Rename it by
-changing `name` in `worlds/world04.js`.
+A parody desktop: every window, button, folder and loading circle is a plain original shape
+(no real logos, icons or trademarks). Rename it by changing `name` in `worlds/world04.js`.
 
-| # | Level | New idea |
+| Section | Kind | What's in it |
 | --- | --- | --- |
-| 1 | Desktop | chasing popup windows, closing windows, file-drag conveyors — **Minimize** |
-| 2 | Error Gauntlet | error boxes, spinning loaders, file stacks to break (from archived level 6) — **Maximize** |
-| 3 | File Explorer | tiered folders with linked windows (from archived level 8) — **Alt-Tab**; earns the **Popup Shotgun** |
-| 4 | Update Hell | crashing blue panels and everything combined |
-| 5 | Blue Screen | a final gauntlet, then the multi-phase **Blue Screen Beast** |
+| Desktop | intro | chasing popups, closing windows, file-drag conveyors; **Minimize** |
+| Error Gauntlet | intro | error boxes, spinning loaders, file stacks; **Maximize** |
+| File Explorer | intro | tiered folders with linked windows; **Alt-Tab**, **Popup Shotgun** |
+| Update Hell | challenge | crashing blue panels and everything combined |
+| Restart Required | combine | everything at once |
+| Blue Screen | boss | **Blue Screen Beast**: when a fist gets stuck, Maximize and shove it back to force an "update", then hit it |
 
 Minimize (Y) shrinks you small enough for thin slots and makes you quicker; press again to restore.
 Maximize (U) makes you big and heavy: walk into a file stack to smash it (can't grow under a low ceiling).
@@ -73,19 +96,19 @@ Spinning loaders can't be stomped. Popup Shotgun fires a 5-window spread.
 
 ## World 5: Apocalypse World
 
-Unlocks after World 4's boss; harder again. A ruined city of broken machines under an orange
-sky: smoke, rust, sparks, crumbling rubble and toxic sludge.
+A ruined city of broken machines under an orange sky: smoke, rust, sparks, rubble and toxic sludge.
 
-| # | Level | New idea |
+| Section | Kind | What's in it |
 | --- | --- | --- |
-| 1 | Ashfall Avenue | scrap crawlers, rocket drones, toxic puddles, crumbling bridges — **Grapple Hook** |
-| 2 | Smelter Row | cracked floors under sealed walls, wrecker bots, fire vents — **Ground Slam**; earns the **Rocket Launcher** |
-| 3 | Fallen Tower | a four-room climb (from the archived Overclock Tower), falling debris, a rocket wall — **Jetpack Burst** |
-| 4 | Scrapyard Run | everything combined |
-| 5 | Titan Foundry | a final gauntlet, then the three-phase **Wrecker Titan** |
+| Ashfall Avenue | intro | scrap crawlers, rocket drones, toxic puddles, crumbling bridges; **Grapple Hook** |
+| Smelter Row | intro | cracked floors, wrecker bots, fire vents; **Ground Slam** |
+| Scrapyard | intro | **Jetpack Burst**, the **Rocket Launcher** and a rocket wall |
+| Collapse Run | challenge | falling debris and everything combined |
+| Fallen Tower | combine | a climb to the roof |
+| Titan Foundry | boss | **Wrecker Titan**: crack both smokestacks (rockets or slams) to make it overheat |
 
 Grapple Hook (G) near a ring: swing, press Jump to let go (you get a little pop upward).
-Ground Slam (↓ or N in mid-air): crashes down, breaks cracked floors and stuns nearby enemies;
+Ground Slam (down or N in mid-air): crashes down, breaks cracked floors and stuns nearby enemies;
 stunned enemies are harmless and can be stomped (even armoured wrecker bots).
 Jetpack Burst (H): a strong upward boost that recharges in ~1.3 s.
 Rocket Launcher: area damage, and the only thing that breaks cracked walls. Rocket drones' rockets can be shot down.
@@ -95,18 +118,19 @@ Rocket Launcher: area damage, and the only thing that breaks cracked walls. Rock
 The final world, and the hardest. A command-line look built only from original, generic shapes
 (no logos or mascots): prompts, directory trees, package crates and process monitors.
 
-| # | Level | New idea |
+| Section | Kind | What's in it |
 | --- | --- | --- |
-| 1 | Home Directory | zombie processes, memory leaks, infinite-loop platforms — **Sudo** opens permission-locked doors |
-| 2 | Process Tree | timed switches far from their doors, fork bombs, kernel panic orbs — **Pipe** |
-| 3 | Package Tree | tiers of a directory tree with symlink pads and switch branches (from the archived Quantum Maze) — **Kill Process**; earns the **Grep Beam** |
-| 4 | Root Filesystem | everything combined, including a three-door Sudo sprint |
-| 5 | Kernel Space | a final gauntlet (after the archived Core Meltdown), then the three-phase **Kernel Core** |
+| Home Directory | intro | zombie processes, memory leaks, infinite-loop platforms; **Sudo** |
+| Process Tree | intro | timed switches far from their doors, fork bombs, panic orbs; **Pipe** |
+| Package Tree | intro | directory tiers with symlink pads and switch branches; **Kill Process**, **Grep Beam** |
+| Root Filesystem | challenge | everything combined, including a three-door Sudo sprint |
+| Kernel Space | combine | a final gauntlet |
+| Kernel Core | boss | **Kernel Core**: hit the core when it dumps; in phase 3 stomp it or Sudo through its shield |
 
 Sudo (O): for 4 s you pass permission-locked doors and ignore shields (10 s recharge).
 Pipe (\ or .): press once to mark a spot, again somewhere else to link it; press inside either end to travel.
 Kill Process (Delete or ,): instantly removes the enemy under the red reticle (not bosses); 15 s recharge.
-Zombie processes get back up after being "killed" — stomp the `<defunct>` body to reap them.
+Zombie processes get back up after being "killed": stomp the `<defunct>` body to reap them.
 Memory leaks grow over time; shots shrink them. Panic orbs are shielded until they've blown their ring.
 Grep Beam: an instant, piercing beam straight ahead (shields stop it unless Sudo is on).
 
@@ -117,7 +141,7 @@ Grep Beam: an instant, piercing beam straight ahead (shields stop it unless Sudo
 | Move | ← → / A D | ◀ ▶ |
 | Jump (hold for higher) | Space / ↑ / W / Z | JUMP |
 | Drop through thin platform | ↓ + Jump | ▼ + JUMP |
-| Dash (from World 1 level 3) | Shift / X | DASH |
+| Dash (World 1, Server Core) | Shift / X | DASH |
 | Fire weapon | F / C / J | FIRE |
 | Switch weapon | Q / E / 1-9 | WPN |
 | Pause | Esc / P | II |
@@ -152,10 +176,11 @@ and text selection are disabled while playing.
 ### Help, Codex and the mini map
 
 - The first time a new enemy (or a non-obvious hazard) appears, a short one-time tip says what
-  it is and how to deal with it. Bosses get a name card. Levels open with their goal.
+  it is and how to deal with it. Bosses get a name card. Each section opens with its name and
+  goal, and the HUD shows the current section.
 - New weapons and abilities are introduced once (name, what it does, which key/button).
 - **HELP / CODEX** (pause menu or title) lists every enemy, hazard, boss, weapon, ability,
-  item and mechanic tip found so far, each with an icon and one line.
+  item and mechanic tip found so far, each with an icon and one line; LOGS keeps every sign read.
 - The HUD shows the current weapon and its charges, ability recharges and active power-ups.
   An arrow at the screen edge points to the exit when it's off screen.
 - The mini map (top right) shows the parts of the level you've seen: terrain, you, the exit,
@@ -174,20 +199,24 @@ entities/           player, pickups, hazards, enemies, and one file per world's 
 entities/index.js   entity manifest (list of files to load)
 weapons/            one file per weapon + weapons/index.js manifest
 worlds/             one file per world (worldNN.js, _TEMPLATE.js) + worlds/index.js (play order)
-levels/worldNN/     each world's level files; levels/_archive/ holds unused levels to reuse
+levels/worldNN/     world.js: the world's single long level (with sections)
+levels/_archive/    the old five-levels-per-world files and levels 6-10, kept to reuse
 ```
 
 Everything uses plain `<script>` tags (no ES modules), so it works straight from disk.
 
-## Add a new level
+## Add or edit a world's level
 
-1. Copy `levels/_TEMPLATE.js` into a world's folder, e.g. `levels/world02/level06.js`.
-2. Give it an `id` (unique inside the world) and a `name`, then draw the `map` (one character
-   per tile; all rows the same length).
-3. Add `"level06.js",` to that world's `levels` list in `worlds/world02.js`.
-4. Open `index.html`. Problems are printed in the browser console (F12) and the level card
+1. Each world's level is `levels/<folder>/world.js`; for a new world, copy `levels/_TEMPLATE.js` there.
+2. Give it an `id` and a `name`, draw the `map` (one character per tile; all rows the same
+   length) and split it into `sections` (name, short desc, kind, column range, optional theme).
+   Use `"sign"` (with `text` in `entityOverrides`) for story notes and `"prop:<kind>"` for
+   scenery (see `entities/decor.js`).
+3. Put `"world.js"` in that world's `levels` list in `worlds/worldNN.js`.
+4. Open `index.html`. Problems are printed in the browser console (F12) and the world card
    turns red. The check catches a missing start, a missing exit, unknown legend characters,
-   legend entries pointing at unregistered entity types, and uneven row lengths.
+   legend entries pointing at unregistered entity types, uneven row lengths, section ranges
+   that don't cover the map, sections without a checkpoint, and a boss outside the last section.
 
 To add a whole world, copy `worlds/_TEMPLATE.js` (see the comments in it) and list it in
 `worlds/index.js`.
@@ -248,7 +277,7 @@ Temporary power-ups live in the `POWERUPS` table in `entities/pickups.js`
 3. Place it in a level with the legend value `"powerup:jump"`.
 
 A completely different pickup can also be its own file with `registerEntity` and an `onTouch` hook.
-Permanent upgrades (`doubleJump`, `dash`, `pulse`, `hpUp`) are granted by a level's `unlocks`
+Permanent upgrades (`doubleJump`, `dash`, `pulse` and each world's abilities) are granted by a level's `unlocks`
 list or by an in-level `"upgrade:<name>"` pickup, and carry over to later levels.
 
 ## Sound effects
@@ -266,5 +295,7 @@ Helpers: `s.tone` (oscillator with pitch sweep), `s.noise` (filtered noise burst
 
 ## Developer options
 
-Open `index.html?debug` for an FPS counter, all levels unlocked, `F9` = god mode,
-`F10` = teleport to the next checkpoint/boss/exit. `?debug&level=3&x=120` starts level 3 at tile column 120.
+Open `index.html?debug` for an FPS counter, all worlds unlocked, `F9` = god mode,
+`F10` = teleport to the next checkpoint/boss/exit. `?debug&world=2&level=1&x=120` starts
+World 2's level at tile column 120. For testing, `UNLOCK_ALL` at the top of `core/engine.js`
+opens every world and section; set it to `false` for normal progression.

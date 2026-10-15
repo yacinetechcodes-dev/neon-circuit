@@ -11,17 +11,18 @@ registerWorld({
       spike: { color: "#39ff88", fill: "#0c2a16" },
     },
   },
-  levels: ["level01.js", "level02.js", "level03.js", "level04.js", "level05.js"],
+  // One long level for the whole world, split into named sections.
+  levels: ["world.js"],
 
-  // Taught one per level: Data Dash (1), Freeze Process (2), Root Access (3).
+  // Taught one per section (pickups in the level): Data Dash (1), Freeze Process (2), Root Access (3).
   abilities: ["dataDash", "freeze", "rootAccess"],
 
   enemies: ["avDrone", "firewallWall", "bugCrawler", "bitBug", "trojan"],
   hazards: ["glitchBlock", "timedGate", "laserWall", "lockedGate", "spike", "teleporter", "switch", "door",
     "dashRefill", "flipField", "heavyField", "gravityField", "movingPlatform", "fallingPlatform"],
 
-  boss: { level: "level05.js", entity: "adminDaemon" },
+  boss: { level: "world.js", entity: "adminDaemon" },
 
-  // Virus Launcher is awarded for clearing level 3, in time for levels 4-5.
-  weapons: { start: [], rewards: { "level03.js": ["virusLauncher"] } },
+  // Weapon reward: found as a pickup in the level (and kept once the world is cleared).
+  weapons: { start: [], rewards: { "world.js": ["virusLauncher"] } },
 });

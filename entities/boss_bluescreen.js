@@ -6,19 +6,21 @@
  *   Phase 1  fist slams (shockwaves), summons popups, scanline sweep
  *   Phase 2  + file-drag pull toward the Beast
  *   Phase 3  + crashing blue panels from the ceiling, faster everything
- * After each attack string it starts UPDATING: it freezes and its core opens —
- * hit it then. Repair capsules drop at each phase start and every ~14 s.
+ * Unique mechanic: after a fist attack one fist stays STUCK in the floor
+ * (glowing amber, safe to touch). MAXIMIZE and walk into it to smash it —
+ * the Beast crashes into UPDATING: it freezes and its core opens, hit it.
+ * 9 hits (3 per phase). Repair capsules at each phase start and every ~14 s.
  *
  * overrides: hp (multiple of 3), title, arena: [col, row, cols, rows]
  * ========================================================================= */
 "use strict";
 
 registerEntity("blueScreenBeast", {
-  info: { name: "Blue Screen Beast", desc: "Hit it while it updates." },
+  info: { name: "Blue Screen Beast", desc: "Maximize and smash its stuck fist, then hit it." },
   size: [128, 112],
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,
-    hp: 21, title: "BLUE SCREEN BEAST", color: "#1e88e5",
+    hp: 9, title: "BLUE SCREEN BEAST", color: "#1e88e5",
     stompable: (e) => (e.mode === "update" ? true : "bounce"),
     shootable: (e) => e.mode === "update",
     dashable: (e) => e.mode === "update",
@@ -36,9 +38,9 @@ registerEntity("blueScreenBeast", {
   },
   phaseOf(e) { const q = e.maxHp / 3; return e.hp > q * 2 ? 1 : e.hp > q ? 2 : 3; },
   pattern(e) {
-    if (e.phase === 1) return ["fists", "popups", "scan", "update"];
-    if (e.phase === 2) return ["scan", "fists", "drag", "popups", "update"];
-    return ["crash", "scan", "fists", "drag", "crash", "update"];
+    if (e.phase === 1) return ["fists", "popups", "scan"];
+    if (e.phase === 2) return ["fists", "drag", "scan"];
+    return ["crash", "fists", "drag"];
   },
   next(e) { const pat = this.pattern(e); e.mode = pat[e.step % pat.length]; e.step++; e.timer = 0; e.slams = e.phase === 3 ? 4 : 3; },
   rest(e, f) { e.mode = "rest"; e.timer = f; },
@@ -57,6 +59,19 @@ registerEntity("blueScreenBeast", {
     if (!["sleep", "intro", "dying"].includes(e.mode) && ++e.healT >= 840) {
       e.healT = 0;
       if (!world.entities.some((o) => o.beastDrop && !o.dead)) this.dropHealth(e, world);
+    }
+    // A stuck fist: a Maximized player smashes it and the Beast crashes into an update.
+    for (const f of e.fists) {
+      if (!(f.stuck > 0)) continue;
+      f.stuck--;
+      const P = world.player;
+      if (P.alive && P.form === "max" && U.overlap({ x: P.x - 4, y: P.y - 4, w: P.w + 8, h: P.h + 8 }, f) && !["dying", "update"].includes(e.mode)) {
+        f.stuck = 0; f.busy = false;
+        world.particles.burst(U.cx(f), U.cy(f), 30, "#ffb300", 6, { shape: "square" });
+        world.camera.shake(10); sfx.play("smash");
+        for (const o of world.entities) if (o.name === "shockwave" || o.name === "scanBeam" || o.name === "panelDrop") o.dead = true;
+        e.mode = "update"; e.timer = 0;
+      } else if (f.stuck <= 0) f.busy = false;
     }
     // Idle fists drift back home.
     for (let i = 0; i < e.fists.length; i++) {
@@ -91,6 +106,7 @@ registerEntity("blueScreenBeast", {
       case "fists": {
         const f = e.fists[e.slams % 2];
         if (!f) { this.rest(e, 30); return; }
+        if (e.timer === 0) for (const o of e.fists) o.stuck = 0;
         e.timer++;
         const aim = Math.round(40 / fast), fallMax = 50, hold = 18;
         f.busy = true;
@@ -113,7 +129,12 @@ registerEntity("blueScreenBeast", {
         } else {
           f.busy = false; f.armed = false; f.shadow = false;
           e.timer = 0;
-          if (--e.slams <= 0) this.rest(e, Math.round(30 / fast));
+          if (--e.slams <= 0) {
+            // The last fist gets stuck in the floor: smash it while Maximized.
+            f.busy = true; f.stuck = 220;
+            if (!Save.seen("stuckFist")) { Save.markSeen("stuckFist"); world.showHint("{maximize} and smash the stuck fist"); }
+            this.rest(e, Math.round(30 / fast));
+          }
         }
         return;
       }
@@ -265,7 +286,8 @@ registerEntity("beastFist", {
       ctx.fillStyle = "rgba(229,57,53,0.45)"; ctx.fillRect(e.x, floorY - 4, e.w, 4);
     }
     ctx.fillStyle = "#0b1f3a"; ctx.fillRect(e.x, e.y, e.w, e.h);
-    ctx.fillStyle = e.armed ? "#e53935" : "#1e88e5"; ctx.fillRect(e.x + 4, e.y + 4, e.w - 8, e.h - 8);
+    ctx.fillStyle = e.stuck > 0 ? (world.time % 10 < 5 ? "#ffb300" : "#ffe082") : e.armed ? "#e53935" : "#1e88e5"; ctx.fillRect(e.x + 4, e.y + 4, e.w - 8, e.h - 8);
+    if (e.stuck > 0) U.glow(ctx, U.cx(e), U.cy(e), 40, "#ffb300", 0.5);
     ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(e.x + 8, e.y + 8, e.w - 16, 4);
   },
 });

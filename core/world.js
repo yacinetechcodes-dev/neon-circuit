@@ -8,7 +8,7 @@ class World {
    * @param def       level definition (from registerLevel)
    * @param index     position of the level inside its world
    * @param upgrades  permanent upgrades the player owns when starting
-   * @param opts      { worldDef, weapons: [names], weapon: selected name, lives }
+   * @param opts      { worldDef, weapons: [names], weapon: selected name, lives, maxHp, section }
    */
   constructor(def, index, upgrades, opts = {}) {
     this.def = def;
@@ -19,18 +19,11 @@ class World {
     this.pw = lv.w * TILE; this.ph = lv.h * TILE;
     this.gravity = def.gravity || 1;
 
-    // Theme: engine defaults ← world theme ← level theme.
-    const wTheme = Object.assign({}, (this.worldDef && this.worldDef.theme) || {});
-    this.skins = wTheme.skins || {};   // per-entity look overrides, e.g. { spike: { color } }
-    delete wTheme.skins;
-    const th = Object.assign(
-      { bgTop: "#050818", bgBottom: "#0a1a3a", accent: "#00f0ff", gridColor: "#0b3a5a", style: "boot" },
-      wTheme, def.theme || {}
-    );
-    th.tileFill = th.tileFill || U.mix(th.bgBottom, th.gridColor, 0.55);
-    th.tileInner = th.tileInner || U.mix(th.bgTop, th.gridColor, 0.35);
-    th.edgeDim = U.rgba(th.accent, 0.35);
-    th.edgeGlow = U.rgba(th.accent, 0.13);
+    // Theme: engine defaults ← world theme ← level theme ← section theme.
+    this.skins = ((this.worldDef && this.worldDef.theme) || {}).skins || {};   // per-entity look overrides
+    this.sections = def.sections || [];   // named parts of a world level (see levels/_TEMPLATE.js)
+    this.sectionIdx = -1;
+    const th = this.buildTheme(null);
     this.theme = th;
 
     this.entities = [];
@@ -39,12 +32,13 @@ class World {
     this.camera = new Camera();
     this.camera.setBounds(this.pw, this.ph);
     this.background = new Background(th, def.id || index + 1);
+    this._bgCache = {};
 
     this.flags = {};
     this.time = 0;            // frames since the level started
     this.levelTime = 0;       // frames counted for the stats (not while dying)
     this.deaths = 0;
-    this.lives = opts.lives == null ? 3 : opts.lives; // per attempt; 0 → restart the level
+    this.lives = opts.lives == null ? 5 : opts.lives; // per attempt; all gone → restart the level
     this.cores = 0; this.coresTotal = 0;
     this.secrets = 0; this.secretsTotal = 0;
     this.hint = null;         // { text, t, max }
@@ -61,6 +55,7 @@ class World {
     const sx = lv.start.x * TILE + (TILE - Player.W) / 2;
     const sy = (lv.start.y + 1) * TILE - Player.H;
     this.player = new Player(this, sx, sy, upgrades, opts.weapons || [], opts.weapon);
+    if (opts.maxHp) { this.player.maxHp = opts.maxHp; this.player.hp = opts.maxHp; }
     this.checkpoint = { x: sx, y: sy, entity: null };
 
     // Entities from the map.
@@ -70,8 +65,47 @@ class World {
       if (s.name === "secretCore") this.secretsTotal++;
       void e;
     }
+    // Start part-way in (section select): at that section's first checkpoint.
+    if (opts.section > 0 && this.sections[opts.section]) {
+      const sec = this.sections[opts.section];
+      const cp = this.entities.filter((e) => e.name === "checkpoint" && e.col >= sec.from && e.col <= sec.to).sort((a, b) => a.col - b.col)[0];
+      if (cp) { this.setCheckpoint(cp); cp.on = true; this.player.x = this.checkpoint.x; this.player.y = this.checkpoint.y; }
+    }
     this.camera.snap(this.player);
     this.banner = { text: def.name.toUpperCase(), sub: "", t: 120, max: 120, color: th.accent };
+  }
+
+  /** Theme for a section (null = the level's own). */
+  buildTheme(sec) {
+    const wTheme = Object.assign({}, (this.worldDef && this.worldDef.theme) || {});
+    delete wTheme.skins;
+    const th = Object.assign(
+      { bgTop: "#050818", bgBottom: "#0a1a3a", accent: "#00f0ff", gridColor: "#0b3a5a", style: "boot" },
+      wTheme, this.def.theme || {}, (sec && sec.theme) || {}
+    );
+    th.tileFill = th.tileFill || U.mix(th.bgBottom, th.gridColor, 0.55);
+    th.tileInner = th.tileInner || U.mix(th.bgTop, th.gridColor, 0.35);
+    th.edgeDim = U.rgba(th.accent, 0.35);
+    th.edgeGlow = U.rgba(th.accent, 0.13);
+    return th;
+  }
+
+  /** Which section the player is in (by column); announce and re-theme on change. */
+  updateSection() {
+    if (!this.sections.length) return;
+    const c = Math.floor(U.cx(this.player) / TILE);
+    let i = this.sections.findIndex((s) => c >= s.from && c <= s.to);
+    if (i < 0 || i === this.sectionIdx) return;
+    const first = this.sectionIdx < 0;
+    this.sectionIdx = i;
+    const sec = this.sections[i];
+    if (sec.theme || first) {
+      this.theme = this.buildTheme(sec);
+      const key = sec.theme ? i : "base";
+      this.background = this._bgCache[key] || (this._bgCache[key] = new Background(this.theme, (this.def.id || 1) * 10 + i));
+    }
+    if (typeof Game !== "undefined" && Game.onSectionReached) Game.onSectionReached(this, i);
+    if (!first) this.banner = { text: sec.name.toUpperCase(), sub: (sec.desc || "").toUpperCase(), t: 150, max: 150, color: this.theme.accent };
   }
 
   // ---------------------------------------------------------------- spawning
@@ -161,6 +195,7 @@ class World {
       p.update(this);
       this.interactions();
       this.runScripts();
+      this.updateSection();
       if (typeof Guide !== "undefined") Guide.update(this);
       if (typeof MiniMap !== "undefined") MiniMap.update(this);
       if (p.y > this.ph + 80) this.fallOut();
@@ -181,6 +216,13 @@ class World {
     if (this.entities.some((e) => e.dead)) this.entities = this.entities.filter((e) => !e.dead);
     this.particles.update();
     this.camera.update(p);
+    // Every message stays up long enough to read: 1.5 s + 0.4 s per word.
+    for (const m of [this.hint, this.banner]) {
+      if (!m || m.timed) continue;
+      m.timed = true;
+      const need = World.readFrames(`${m.text} ${m.sub || ""}`);
+      if (need > m.max) { m.t += need - m.max; m.max = need; }
+    }
     if (this.hint && --this.hint.t <= 0) this.hint = null;
     if (this.banner && --this.banner.t <= 0) this.banner = null;
     if (this.fade > 0) this.fade -= 0.04;
@@ -409,8 +451,10 @@ class World {
   }
 
   // ------------------------------------------------------------- scripts
-  showHint(text, seconds = 4) {
-    this.hint = { text, t: Math.round(seconds * FPS), max: Math.round(seconds * FPS) };
+  /** Short on-screen message; it stays at least as long as it takes to read. */
+  showHint(text, seconds = 0) {
+    const f = Math.max(Math.round(seconds * FPS), World.readFrames(text));
+    this.hint = { text, t: f, max: f, timed: true };
   }
 
   runScripts() {
@@ -434,7 +478,7 @@ class World {
       case "hint":
         // Keyed hints show once ever, and never after the mechanic was used.
         if (a.key) { if (Save.seen(a.key)) break; Save.markSeen(a.key); }
-        this.showHint(a.text, a.time || 2.5);
+        this.showHint(a.text);
         break;
       case "banner":
         this.banner = { text: a.text, sub: a.sub || "", t: (a.time || 2.5) * FPS, max: (a.time || 2.5) * FPS, color: a.color || this.theme.accent };
@@ -510,6 +554,8 @@ class World {
  *  and moving / cycling hazards. Bosses and pickups keep running. */
 World.FREEZE_TYPES = new Set(["bullet", "shockwave", "movingPlatform", "fallingPlatform", "crusher",
   "laser", "electric", "laserWall", "timedGate", "glitchBlock", "pixelWall", "vanishBlock", "closingWindow", "bluePanel"]);
+/** Frames needed to read a message: 1.5 s + 0.4 s per word. */
+World.readFrames = (text) => Math.round((1.5 + 0.4 * String(text).trim().split(/\s+/).filter(Boolean).length) * FPS);
 World.freezes = (e) => !e.noFreeze && ((e.enemy && !e.isBoss) || World.FREEZE_TYPES.has(e.name) || !!e.freezable);
 
 /** Ground Slam stun: little squares circling above the enemy. */

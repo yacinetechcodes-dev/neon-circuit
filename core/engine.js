@@ -13,7 +13,7 @@
 const UNLOCK_ALL = true;
 
 // Entity types every world may use without listing them.
-const ALWAYS_ALLOWED = ["core", "secretCore", "checkpoint", "exit", "powerup", "upgrade", "weapon", "fakeWall", "gate"];
+const ALWAYS_ALLOWED = ["core", "secretCore", "checkpoint", "exit", "powerup", "upgrade", "weapon", "fakeWall", "gate", "sign", "prop"];
 
 const Game = {
   state: "boot",
@@ -30,6 +30,11 @@ const Game = {
   fps: 60, _fpsFrames: 0, _fpsTime: 0,
 
   isPlaying() { return this.state === "play"; },
+  /** Sections of a world's level (one long level per world). */
+  sectionsOf(wi = this.worldIndex) {
+    const d = this.levelsOf(wi)[0];
+    return (d && d.sections && d.sections.length) ? d.sections : d ? [{ name: d.name, from: 0, to: 1e9 }] : [];
+  },
   worlds() { return Registry.worlds; },
   worldDef(wi = this.worldIndex) { return Registry.worlds[wi]; },
   levelsOf(wi = this.worldIndex) { const w = Registry.worlds[wi]; return w ? w.levelDefs : []; },
@@ -134,6 +139,22 @@ const Game = {
     const w = Registry.worlds[wi];
     return this.debug || UNLOCK_ALL || (!!w && this.worldUnlocked(wi) && li < Save.world(w.id).unlocked);
   },
+  /** Max health in a world: 3, +1 every 2 worlds (3,3,4,4,5,5…). Saved once
+   *  earned and carried over (Save.data.maxHp). */
+  maxHpFor(wi) {
+    return 3 + Math.floor(wi / 2);
+  },
+  /** Section reached in a world level: remembered for the section select. */
+  onSectionReached(world, i) {
+    const w = this.worldDef();
+    if (!w || world !== this.world) return;
+    const rec = Save.world(w.id);
+    if ((rec.reached || 0) < i) { rec.reached = i; Save.write(); }
+  },
+  sectionUnlocked(wi, si) {
+    const w = Registry.worlds[wi];
+    return si === 0 || this.debug || UNLOCK_ALL || (!!w && (Save.world(w.id).reached || 0) >= si);
+  },
   /** Furthest playable spot: last unlocked world, its last unlocked level. */
   furthest() {
     let wi = 0;
@@ -178,7 +199,7 @@ const Game = {
       case "title": {
         const started = Object.keys(Save.data.best).length > 0;
         const f = this.furthest();
-        const label = Registry.worlds.length > 1 ? `CONTINUE  ${f.wi + 1}-${f.li + 1}` : `CONTINUE  ${f.li + 1}`;
+        const label = `CONTINUE  WORLD ${f.wi + 1}`;
         this.menu = new Menu([
           { label: started ? label : "START", action: "continue" },
           { label: "WORLDS", action: "worlds" },
@@ -197,14 +218,14 @@ const Game = {
           { label: "RESTART", action: "restart" },
           { label: this.soundLabel(), action: "mute" },
           ...(Input.touchMode && document.fullscreenEnabled ? [{ label: document.fullscreenElement ? "EXIT FULLSCREEN" : "FULLSCREEN", action: "fullscreen" }] : []),
-          { label: "LEVELS", action: "select" },
+          { label: "WORLDS", action: "worlds" },
           { label: "QUIT", action: "title" },
         ], { width: 300, compact: true });
         break;
       case "gameover":
         this.menu = new Menu([
-          { label: "RETRY", action: "restart" },
-          { label: "LEVELS", action: "select" },
+          { label: "RESTART WORLD", action: "restartAll" },
+          { label: "WORLDS", action: "worlds" },
           { label: "QUIT", action: "title" },
         ], { width: 300 });
         break;
@@ -212,9 +233,9 @@ const Game = {
         const lastInWorld = this.levelIndex >= this.levelsOf().length - 1;
         const nextWorld = Registry.worlds[this.worldIndex + 1];
         let items;
-        if (!lastInWorld) items = [{ label: "NEXT", action: "next" }, { label: "REPLAY", action: "restart" }, { label: "LEVELS", action: "select" }];
-        else if (nextWorld && this.worldUnlocked(this.worldIndex + 1)) items = [{ label: "NEXT WORLD", action: "nextWorld" }, { label: "REPLAY", action: "restart" }, { label: "WORLDS", action: "worlds" }];
-        else items = [{ label: "CONTINUE", action: nextWorld ? "worlds" : "victory" }, { label: "REPLAY", action: "restart" }];
+        if (!lastInWorld) items = [{ label: "NEXT", action: "next" }, { label: "REPLAY", action: "restartAll" }, { label: "WORLDS", action: "worlds" }];
+        else if (nextWorld && this.worldUnlocked(this.worldIndex + 1)) items = [{ label: "NEXT WORLD", action: "nextWorld" }, { label: "REPLAY", action: "restartAll" }, { label: "WORLDS", action: "worlds" }];
+        else items = [{ label: "CONTINUE", action: nextWorld ? "worlds" : "victory" }, { label: "REPLAY", action: "restartAll" }];
         this.menu = new Menu(items, { width: 300 });
         break;
       }
@@ -232,10 +253,8 @@ const Game = {
         this.cardRects = [];
         break;
       case "select": {
-        const n = this.levelsOf().length;
-        const f = this.furthest();
-        const def = f.wi === this.worldIndex ? f.li : 0;
-        this.selIndex = U.clamp(this.levelSel == null ? def : this.levelSel, 0, Math.max(0, n - 1));
+        const n = this.sectionsOf().length;
+        this.selIndex = U.clamp(this.sectionSel || 0, 0, Math.max(0, n - 1));
         this.cardRects = [];
         break;
       }
@@ -254,7 +273,7 @@ const Game = {
     if (this.state === "play" && this.world) this.world.showHint(muted ? "SOUND OFF" : "SOUND ON", 1.2);
   },
 
-  startLevel(wi, li) {
+  startLevel(wi, li, si = 0) {
     const wdef = Registry.worlds[wi];
     const def = wdef && wdef.levelDefs[li];
     if (!def) { this.setState("title"); return; }
@@ -262,16 +281,30 @@ const Game = {
     this.worldIndex = wi;
     this.levelIndex = li;
     this.levelSel = li;
+    this.sectionSel = si;
     this.world = new World(def, li, this.abilitiesFor(wi, li), {
       worldDef: wdef,
       weapons: this.weaponsFor(wi, li),
       weapon: Save.data.weapon,
+      lives: 5,
+      maxHp: this.maxHpFor(wi),
+      section: si,
     });
     Guide.levelStart(this.world, wi, li);
     this.setState("play");
   },
 
-  onPlayerDied() { this.setState("gameover"); },
+  /** A death costs a life and returns you to the last checkpoint; with no
+   *  lives left the world's level starts over from the beginning. */
+  onPlayerDied(world) {
+    if (world && world.lives > 1) {
+      world.lives--;
+      world.respawn(true);
+      world.banner = { text: `${world.lives} ${world.lives === 1 ? "LIFE" : "LIVES"} LEFT`, sub: "", t: 90, max: 90, color: "#ff4d6d" };
+      return;
+    }
+    this.setState("gameover");
+  },
 
   onLevelComplete(world) {
     const def = world.def, wdef = this.worldDef();
@@ -287,6 +320,8 @@ const Game = {
     const bossBeaten = this.isBossLevel(this.worldIndex, this.levelIndex);
     const firstBossWin = bossBeaten && !Save.world(wdef.id).bossBeaten;
     const isBest = Save.recordLevel({ worldId: wdef.id, index: this.levelIndex, levelId: def.id, stats, unlocks, weapons, bossBeaten });
+    // Clearing a world earns the health of the next tier (every 2 worlds), kept for good.
+    if (bossBeaten) { Save.data.maxHp = Math.max(Save.data.maxHp || 3, 3 + Math.floor((this.worldIndex + 1) / 2)); Save.write(); }
     this.completeInfo = { stats, newUnlocks, newWeapons, isBest, name: def.name, worldClear: firstBossWin };
     this.setState("complete");
   },
@@ -328,7 +363,8 @@ const Game = {
       case "title": this.world = null; this.setState("title"); break;
       case "resume": this.state = "play"; break;
       case "checkpoint": this.world.respawn(true); this.state = "play"; break;
-      case "restart": this.startLevel(this.worldIndex, this.levelIndex); break;
+      case "restart": this.startLevel(this.worldIndex, this.levelIndex, this.sectionSel || 0); break;
+      case "restartAll": this.startLevel(this.worldIndex, this.levelIndex, 0); break;
       case "next": this.startLevel(this.worldIndex, this.levelIndex + 1); break;
       case "nextWorld": this.startLevel(this.worldIndex + 1, 0); break;
       case "victory": this.setState("victory"); break;
@@ -354,9 +390,9 @@ const Game = {
         pick: (i) => { this.worldSel = i; this.worldIndex = i; this.levelSel = null; this.setState("select"); },
         back: () => this.setState("title"),
       });
-      case "select": return this.updateCards(this.levelsOf().length, {
-        locked: (i) => !this.levelUnlocked(this.worldIndex, i) || !!this.levelErrors[this.worldIndex + ":" + i],
-        pick: (i) => this.startLevel(this.worldIndex, i),
+      case "select": return this.updateCards(this.sectionsOf().length, {
+        locked: (i) => !this.sectionUnlocked(this.worldIndex, i) || !!this.levelErrors[this.worldIndex + ":0"],
+        pick: (i) => this.startLevel(this.worldIndex, 0, i),
         back: () => this.setState("worlds"),
       });
       case "controls":
@@ -600,7 +636,7 @@ const Game = {
   /** Help / Codex: tabs of everything discovered so far, icon + one line each. */
   drawCodex(ctx) {
     UI.text(ctx, "HELP / CODEX", VIEW_W / 2, 42, { size: 28, align: "center", glow: "#00f0ff" });
-    const tabs = Guide.TABS, tw = 126, tx0 = VIEW_W / 2 - (tabs.length * tw) / 2;
+    const tabs = Guide.TABS, tw = 112, tx0 = VIEW_W / 2 - (tabs.length * tw) / 2;
     const R = (this.codexRects = { tabs: [] });
     tabs.forEach((t, i) => {
       const r = { x: tx0 + i * tw + 2, y: 56, w: tw - 4, h: 30 };
@@ -681,34 +717,31 @@ const Game = {
   drawWorlds(ctx) {
     const cards = Registry.worlds.map((w, i) => {
       const prog = Save.world(w.id);
-      const n = w.levelDefs.length;
-      const cleared = w.levelDefs.filter((d) => Save.best(w.id, d.id)).length;
+      const def = w.levelDefs[0], b = def && Save.best(w.id, def.id);
+      const secs = (def && def.sections && def.sections.length) || 1;
       return {
         num: String(i + 1), name: w.name, theme: w.theme,
         locked: !this.worldUnlocked(i), bad: !!this.worldErrors[i],
-        lines: [[`LEVELS ${cleared}/${n}`, "#a8c8e0"], [`BOSS   ${prog.bossBeaten ? "✓" : "—"}`, prog.bossBeaten ? "#7dff4a" : "#7f9fc0"]],
+        lines: [[`SECTIONS ${Math.min(secs, (prog.reached || 0) + 1)}/${secs}`, "#a8c8e0"],
+          [`BEST   ${b ? U.fmtTime(b.time) : "—"}`, "#a8c8e0"],
+          [`BOSS   ${prog.bossBeaten ? "✓" : "—"}`, prog.bossBeaten ? "#7dff4a" : "#7f9fc0"]],
       };
     });
     this.drawCards(ctx, "WORLDS", cards);
   },
 
+  /** Section select: a world's level, part by part. Section 1 starts from the
+   *  beginning; reached sections can be replayed from their first checkpoint. */
   drawSelect(ctx) {
-    const w = this.worldDef();
-    const cards = this.levelsOf().map((def, i) => {
-      const b = Save.best(w.id, def.id);
-      return {
-        num: String(i + 1).padStart(2, "0"), name: def.name,
-        theme: Object.assign({}, w.theme || {}, def.theme || {}),
-        locked: !this.levelUnlocked(this.worldIndex, i), bad: !!this.levelErrors[this.worldIndex + ":" + i],
-        lines: b ? [
-          [`TIME   ${U.fmtTime(b.time)}`, "#a8c8e0"],
-          [`CORES  ${b.cores}/${b.coresTotal}`, "#a8c8e0"],
-          [`SECRET ${b.secrets}/${b.secretsTotal}`, "#ffe9a0"],
-          [`DEATHS ${b.deaths}`, "#ffb3c0"],
-        ] : null,
-      };
-    });
-    this.drawCards(ctx, w ? w.name.toUpperCase() : "LEVELS", cards);
+    const w = this.worldDef(), def = this.levelsOf()[0];
+    const kinds = { intro: "NEW IDEA", combine: "MIX", challenge: "CHALLENGE", boss: "BOSS", rest: "REST" };
+    const cards = this.sectionsOf().map((sec, i) => ({
+      num: String(i + 1), name: sec.name,
+      theme: Object.assign({}, w.theme || {}, (def && def.theme) || {}, sec.theme || {}),
+      locked: !this.sectionUnlocked(this.worldIndex, i), bad: !!this.levelErrors[this.worldIndex + ":0"],
+      lines: [[kinds[sec.kind] || "", sec.kind === "boss" ? "#ff8ad8" : "#a8c8e0"]],
+    }));
+    this.drawCards(ctx, w ? w.name.toUpperCase() : "SECTIONS", cards);
   },
 
   drawComplete(ctx) {

@@ -24,4 +24,5 @@ const ENTITY_FILES = [
   "boss_titan.js",    // World 5 boss: Wrecker Titan
   "linux.js",         // World 6: zombie processes, memory leaks, panic orbs, fork bombs, perm doors, loop platforms
   "boss_kernelcore.js", // World 6 boss (final): Kernel Core
+  "decor.js",         // scenery for every world: text signs and animated props
 ];

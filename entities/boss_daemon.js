@@ -6,9 +6,11 @@
  *   Phase 2 FORK          + purge waves (a sweeping firewall with a gap —
  *                           stand in the gap, or Data Dash straight through)
  *   Phase 3 KERNEL PANIC  + falling glitch blocks, faster everything
- * After each attack string it COMPILES: it sinks to the floor and opens —
- * shoot, stomp, dash or infect it. Health pickups appear at the start of each
- * phase and every ~14 s during the fight.
+ * Unique mechanic: FREEZE PROCESS locks it up — while frozen it stops dead
+ * and its core is open (shoot it). After each attack string it also COMPILES:
+ * it sinks to the floor and opens — stomp, shoot, dash or infect it.
+ * 9 hits (3 per phase). Health pickups at the start of each phase and every
+ * ~14 s during the fight.
  *
  * overrides: hp (multiple of 3), title, arena: [col, row, cols, rows]
  * ========================================================================= */
@@ -17,15 +19,15 @@
 const DAEMON_COLORS = ["#39ff88", "#ffd23d", "#ff3df0"];
 
 registerEntity("adminDaemon", {
-  info: { name: "Admin Daemon", desc: "Hit it while it compiles (its core opens)." },
+  info: { name: "Admin Daemon", desc: "Freeze it, then shoot. It also opens while compiling." },
   size: [84, 72],
   anchor: "center",
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,
-    hp: 15, title: "ADMIN DAEMON", color: "#39ff88",
-    stompable: (e) => (e.mode === "compile" && e.open ? true : "bounce"),
-    shootable: (e) => e.mode === "compile" && e.open,
-    dashable: (e) => e.mode === "compile" && e.open,
+    hp: 9, title: "ADMIN DAEMON", color: "#39ff88",
+    stompable: (e) => (e.open ? true : "bounce"),
+    shootable: (e) => e.open,
+    dashable: (e) => e.open,
   },
   init(e, world) {
     const a = e.opts.arena || [e.col - 15, e.row - 4, 30, 17];
@@ -50,9 +52,9 @@ registerEntity("adminDaemon", {
     return e.hp > q * 2 ? 1 : e.hp > q ? 2 : 3;
   },
   pattern(e) {
-    if (e.phase === 1) return ["teleport", "volley", "teleport", "volley", "drones", "compile"];
-    if (e.phase === 2) return ["teleport", "purge", "volley", "purge", "compile"];
-    return ["teleport", "storm", "purge", "volley", "storm", "compile"];
+    if (e.phase === 1) return ["teleport", "volley", "drones", "compile"];
+    if (e.phase === 2) return ["teleport", "purge", "volley", "compile"];
+    return ["storm", "purge", "teleport", "compile"];
   },
   next(e) {
     const pat = this.pattern(e);
@@ -75,6 +77,14 @@ registerEntity("adminDaemon", {
     const cx = U.cx(e), cy = U.cy(e);
     e.spin += e.open ? 0.01 : 0.03 * fast;
     e.hurts = !["sleep", "compile", "dying", "teleport"].includes(e.mode) || (e.mode === "teleport" && e.alpha > 0.6);
+    // Freeze Process locks it up: frozen in place, core open.
+    // (at most 2 hits per freeze, so it stays a fight)
+    if (world.frozen > 0 && !["sleep", "intro", "dying"].includes(e.mode)) {
+      if (!e.frozenLock) { e.frozenLock = true; e.lockHits = 0; e.wasOpen = e.open; world.showHint("LOCKED UP! Shoot the core"); }
+      e.open = e.lockHits < 2; e.hurts = false; e.alpha = 1;
+      return;
+    }
+    if (e.frozenLock) { e.frozenLock = false; e.open = e.mode === "compile" && e.wasOpen; }
 
     // Repair capsules every ~14 s while the fight is on (one at a time).
     if (e.mode !== "sleep" && e.mode !== "intro" && e.mode !== "dying") {
@@ -217,7 +227,8 @@ registerEntity("adminDaemon", {
   },
 
   onDamage(e, world) {
-    if (!(e.mode === "compile" && e.open) || e.iframes > 0) return false;
+    if (!e.open || e.iframes > 0 || e.mode === "dying" || e.mode === "sleep") return false;
+    if (e.frozenLock) e.lockHits = (e.lockHits || 0) + 1;
     e.hp -= 1;
     e.flash = 10;
     e.iframes = 22;
@@ -233,7 +244,7 @@ registerEntity("adminDaemon", {
     const ph = this.phaseOf(e);
     if (ph !== e.phase) {
       e.phase = ph;
-      e.step = 0; e.timer = 999; e.open = false; // rise and start the new phase
+      e.step = 0; e.timer = 999; e.open = false; e.frozenLock = false; // rise and start the new phase
       e.color = DAEMON_COLORS[ph - 1];
       for (const o of world.entities) if (o.name === "bullet") o.dead = true;
       this.dropHealth(e, world);

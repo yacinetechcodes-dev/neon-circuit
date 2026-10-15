@@ -5,6 +5,8 @@
  *   1  aimed bursts + summons drones
  *   2  laser columns (telegraphed) + radial bullet rings
  *   3  everything, faster
+ * The basic boss pattern of the game: a telegraphed attack string, then the
+ * core sinks and opens. 9 hits (3 per phase), about a minute.
  * Repair capsules drop when the fight starts, at each phase change and
  * every ~14 s.
  * After each attack string it sinks to the floor and its shield opens
@@ -22,7 +24,7 @@ registerEntity("mainframe", {
   layer: 1,
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,
-    hp: 15, title: "THE MAINFRAME", color: "#ff3df0",
+    hp: 9, title: "THE MAINFRAME", color: "#ff3df0",
     stompable: (e) => (e.mode === "expose" && e.open ? true : "bounce"),
     shootable: (e) => e.mode === "expose" && e.open,
     dashable: (e) => e.mode === "expose" && e.open,
@@ -53,9 +55,9 @@ registerEntity("mainframe", {
   },
 
   pattern(e) {
-    if (e.phase === 1) return ["burst", "drones", "burst", "expose"];
-    if (e.phase === 2) return ["beams", "ring", "beams", "expose"];
-    return ["ring", "beams", "burst", "drones", "expose"];
+    if (e.phase === 1) return ["burst", "drones", "expose"];
+    if (e.phase === 2) return ["beams", "ring", "expose"];
+    return ["ring", "beams", "burst", "expose"];
   },
   next(e) {
     const pat = this.pattern(e);

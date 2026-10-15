@@ -1,7 +1,7 @@
 /* worlds/world05.js — "Apocalypse World": a ruined city of broken machines
  * under an orange sky — smoke, rust, sparks, collapsing buildings.
  * World 5 of 6: harder than Windows 10 World. Unlocks after World 4's boss.
- * Level 3 adapts levels/_archive/level09 (the Overclock Tower climb). */
+ * Its Fallen Tower section adapts levels/_archive/level09 (the Overclock Tower climb). */
 registerWorld({
   id: 5,
   name: "Apocalypse World",
@@ -13,18 +13,19 @@ registerWorld({
       spike: { color: "#c9c2ba", fill: "#5d5550" },
     },
   },
-  levels: ["level01.js", "level02.js", "level03.js", "level04.js", "level05.js"],
+  // One long level for the whole world, split into named sections.
+  levels: ["world.js"],
 
-  // Taught one per level: Grapple Hook (1), Ground Slam (2), Jetpack Burst (3).
+  // Taught one per section (pickups in the level): Grapple Hook (1), Ground Slam (2), Jetpack Burst (3).
   abilities: ["grapple", "groundSlam", "jetpack"],
 
   enemies: ["scrapCrawler", "rocketDrone", "wreckerBot"],
   hazards: ["collapseFloor", "fireVent", "debrisDrop", "toxic", "crackedFloor", "crackedWall", "grappleAnchor",
     "spike", "gate"],
 
-  boss: { level: "level05.js", entity: "wreckerTitan" },
+  boss: { level: "world.js", entity: "wreckerTitan" },
 
-  // Rocket Launcher is awarded for clearing level 2: level 3 onward has
-  // cracked walls only a rocket can open.
-  weapons: { start: [], rewards: { "level02.js": ["rocketLauncher"] } },
+  // Weapon reward: found as a pickup in the Scrapyard section (cracked walls
+  // after it need a rocket), and kept once the world is cleared.
+  weapons: { start: [], rewards: { "world.js": ["rocketLauncher"] } },
 });
