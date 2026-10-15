@@ -32,6 +32,7 @@ const Input = {
     KeyY: "minimize", KeyU: "maximize", Tab: "altTab", KeyI: "altTab",
     KeyG: "grapple", KeyN: "slam", KeyH: "jetpack",
     KeyO: "sudo", Backslash: "pipe", Period: "pipe", Delete: "kill", Comma: "kill",
+    Digit0: "map", Backquote: "map",
     Digit1: "weapon1", Digit2: "weapon2", Digit3: "weapon3", Digit4: "weapon4", Digit5: "weapon5",
     Digit6: "weapon6", Digit7: "weapon7", Digit8: "weapon8", Digit9: "weapon9",
   },
@@ -124,6 +125,7 @@ const Input = {
       { action: "shoot", x: VIEW_W - 84, y: y - 146, r: 46, label: "FIRE", need: (p) => p.weapons.length > 0 },
       { action: "weaponNext", x: VIEW_W - 196, y: y - 88, r: 32, label: "WPN", need: (p) => p.weapons.length > 1 },
       { action: "pause", x: VIEW_W - 34, y: 86, r: 26, label: "II" },
+      { action: "map", x: VIEW_W - 34, y: 148, r: 22, label: "MAP" },
     ];
   },
   // Ability button slots (around the right-hand cluster) and the tray row.

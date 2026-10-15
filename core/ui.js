@@ -10,8 +10,8 @@ const UI = {
   /** Replace {jump}-style tokens with the right key names for the device. */
   keys(text, touch = Input.touchMode) {
     const map = touch
-      ? { move: "◀ ▶", jump: "JUMP", dash: "DASH", shoot: "FIRE", down: "▼", pause: "II", swap: "WPN", freeze: "FRZ", shrink: "MINI", block: "BLK", minimize: "MIN", maximize: "MAX", alttab: "TAB", grapple: "HOOK", slam: "SLAM", jetpack: "JET", sudo: "SUDO", pipe: "PIPE", kill: "KILL" }
-      : { move: "← → / A D", jump: "SPACE", dash: "SHIFT", shoot: "F", down: "↓ / S", pause: "ESC", swap: "Q / E", freeze: "R", shrink: "T", block: "B", minimize: "Y", maximize: "U", alttab: "TAB / I", grapple: "G", slam: "↓ / N", jetpack: "H", sudo: "O", pipe: "\\ / .", kill: "DEL / ," };
+      ? { move: "◀ ▶", jump: "JUMP", dash: "DASH", shoot: "FIRE", down: "▼", pause: "II", swap: "WPN", freeze: "FRZ", shrink: "MINI", block: "BLK", minimize: "MIN", maximize: "MAX", alttab: "TAB", grapple: "HOOK", slam: "SLAM", jetpack: "JET", sudo: "SUDO", pipe: "PIPE", kill: "KILL", map: "MAP" }
+      : { move: "← → / A D", jump: "SPACE", dash: "SHIFT", shoot: "F", down: "↓ / S", pause: "ESC", swap: "Q / E", freeze: "R", shrink: "T", block: "B", minimize: "Y", maximize: "U", alttab: "TAB / I", grapple: "G", slam: "↓ / N", jetpack: "H", sudo: "O", pipe: "\\ / .", kill: "DEL / ,", map: "0 / `" };
     return text.replace(/\{(\w+)\}/g, (m, k) => map[k] || m);
   },
 
@@ -152,6 +152,7 @@ const UI = {
     }
     this.drawBossBar(ctx, world);
     this.drawExitMarker(ctx, world);
+    if (typeof MiniMap !== "undefined") MiniMap.draw(ctx, world);
   },
 
   /** When the exit is off screen, an arrow at the screen edge points to it. */
@@ -193,10 +194,11 @@ const UI = {
       const a = Math.min(1, h.t / 20, (h.max - h.t) / 10 + 0.2);
       ctx.globalAlpha = a;
       const txt = this.keys(h.text);
-      ctx.font = `bold 16px ${FONT}`;
-      const w = ctx.measureText(txt).width + 40;
-      this.panel(ctx, VIEW_W / 2 - w / 2, 92, w, 36, world.theme.accent, 0.82);
-      this.text(ctx, txt, VIEW_W / 2, 116, { size: 16, align: "center" });
+      ctx.font = `bold 15px ${FONT}`;
+      const lines = this.wrap(ctx, txt, 520).slice(0, 3);
+      const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 36, hh = 14 + lines.length * 20;
+      this.panel(ctx, VIEW_W / 2 - w / 2, 92, w, hh, world.theme.accent, 0.82);
+      lines.forEach((l, i) => this.text(ctx, l, VIEW_W / 2, 113 + i * 20, { size: 15, align: "center" }));
       ctx.globalAlpha = 1;
     }
     const bn = world.banner;

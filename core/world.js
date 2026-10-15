@@ -162,6 +162,7 @@ class World {
       this.interactions();
       this.runScripts();
       if (typeof Guide !== "undefined") Guide.update(this);
+      if (typeof MiniMap !== "undefined") MiniMap.update(this);
       if (p.y > this.ph + 80) this.fallOut();
     } else if (this.state === "dying") {
       if (--this.stateTimer <= 0) Game.onPlayerDied(this);

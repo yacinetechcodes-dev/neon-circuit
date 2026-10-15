@@ -718,7 +718,7 @@ Player.C = {
   jetV: 10,           // Jetpack Burst: upward speed...
   jetCool: 80,        // ...and its cooldown (frames)
   sudoFrames: 240,    // Sudo lasts 4 s...
-  sudoCool: 720,      // ...and is ready again 12 s after use
+  sudoCool: 600,      // ...and is ready again 10 s after use
   killCool: 900,      // Kill Process: 15 s cooldown
   killRange: 10,      // tiles
   dashSpeed: 12,

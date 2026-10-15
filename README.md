@@ -4,7 +4,10 @@ A sci-fi/cyber 2D platformer in plain HTML5 Canvas + vanilla JavaScript.
 No libraries, no build step, no asset files, no music. **Double-click `index.html` to play.**
 Progress is saved in `localStorage`.
 
-## Levels
+Six worlds of five levels each; each world ends with a boss and unlocks the next one.
+Abilities and weapons carry over from world to world.
+
+## World 1: Tutorial World
 
 | # | Level | New idea |
 | --- | --- | --- |
@@ -13,11 +16,9 @@ Progress is saved in `localStorage`.
 | 3 | Server Core | dash, lasers, crushers, turrets — **Core Warden** mini-boss |
 | 4 | Orbital Station | low gravity, falling platforms, dash crystals, all enemies |
 | 5 | The Mainframe | gauntlet, **Warden Mk-II**, three-phase **Mainframe** |
-| 6 | Firewall Run | moving laser walls, timed gates, checkpoint gauntlet |
-| 7 | Gravity Lab | gravity-flip and heavy-gravity zones |
-| 8 | Quantum Maze | teleporters, switch-and-door puzzles, hidden shortcut |
-| 9 | Overclock Tower | vertical climb, speed-boost gate run — **Warden Mk-III** |
-| 10 | Core Meltdown | every mechanic, then **The Kernel** (new final boss) |
+
+The old levels 6-10 (Firewall Run, Gravity Lab, Quantum Maze, Overclock Tower, Core Meltdown)
+live in `levels/_archive/`; several later-world levels are adapted from them.
 
 ## World 2: Hacking World
 
@@ -102,7 +103,7 @@ The final world, and the hardest. A command-line look built only from original, 
 | 4 | Root Filesystem | everything combined, including a three-door Sudo sprint |
 | 5 | Kernel Space | a final gauntlet (after the archived Core Meltdown), then the three-phase **Kernel Core** |
 
-Sudo (O): for 4 s you pass permission-locked doors and ignore shields (12 s recharge).
+Sudo (O): for 4 s you pass permission-locked doors and ignore shields (10 s recharge).
 Pipe (\ or .): press once to mark a spot, again somewhere else to link it; press inside either end to travel.
 Kill Process (Delete or ,): instantly removes the enemy under the red reticle (not bosses); 15 s recharge.
 Zombie processes get back up after being "killed" — stomp the `<defunct>` body to reap them.
@@ -117,8 +118,10 @@ Grep Beam: an instant, piercing beam straight ahead (shields stop it unless Sudo
 | Jump (hold for higher) | Space / ↑ / W / Z | JUMP |
 | Drop through thin platform | ↓ + Jump | ▼ + JUMP |
 | Dash (from level 2) | Shift / X | DASH |
-| Pulse shot (from level 3) | F / C / J | FIRE |
+| Fire weapon | F / C / J | FIRE |
+| Switch weapon | Q / E / 1-9 | WPN |
 | Pause | Esc / P | II |
+| Mini map on/off | 0 / ` | MAP |
 | Mute | M | pause menu |
 | Freeze Process (World 2) | R / V | FRZ |
 | Pixel Shrink (World 3) | T | MINI |
@@ -133,31 +136,61 @@ Grep Beam: an instant, piercing beam straight ahead (shields stop it unless Sudo
 | Pipe (World 6) | \ / . | PIPE |
 | Kill Process (World 6) | Delete / , | KILL |
 
+The full list (keyboard and touch, filled in from the game's own data) is on the **Controls**
+page, from the title screen or the pause menu.
+
+### Playing on a phone
+
+Open the game in the phone's browser and hold it sideways. On touch screens the game shows
+semi-transparent, thumb-sized buttons: ◀ ▶ (and ▼) on the left; JUMP, DASH, FIRE and WPN on the
+right; pause and MAP at the top right. Several fingers work at once (run and jump together).
+The current world's abilities get their own buttons (a ring shows recharge); abilities from
+earlier worlds are in the ••• tray. Every menu, card and page works by tapping, and the pause
+menu has a FULLSCREEN option. The game scales to any landscape screen; page scrolling, zooming
+and text selection are disabled while playing.
+
+### Help, Codex and the mini map
+
+- The first time a new enemy (or a non-obvious hazard) appears, a short one-time tip says what
+  it is and how to deal with it. Bosses get a name card. Levels open with their goal.
+- New weapons and abilities are introduced once (name, what it does, which key/button).
+- **HELP / CODEX** (pause menu or title) lists every enemy, hazard, boss, weapon, ability,
+  item and mechanic tip found so far, each with an icon and one line.
+- The HUD shows the current weapon and its charges, ability recharges and active power-ups.
+  An arrow at the screen edge points to the exit when it's off screen.
+- The mini map (top right) shows the parts of the level you've seen: terrain, you, the exit,
+  checkpoints, the boss arena and enemy dots. Toggle it with `0` / `` ` `` or MAP; the choice is saved.
+
 ## Project layout
 
 ```
-index.html          loads core/, then the two manifests, then core/loader.js
+index.html          loads core/, then the three manifests, then core/loader.js
 style.css
-core/               engine: util, registry, input, save, particles, camera,
-                    level (parser + validator), physics, render, world, ui, engine, loader
-entities/           player, pickups, hazards, enemies, firewall, gravity, quantum,
-                    boss_warden, boss_mainframe, boss_kernel
+core/               engine: util, sfx, registry, input (keyboard + touch), save, particles,
+                    camera, level (parser + validator), physics, render, world, weapons,
+                    ui (HUD, menus), guide (tips, Controls, Help/Codex), minimap, engine, loader
+entities/           player, pickups, hazards, enemies, and one file per world's enemies/hazards
+                    (hacking, pixel, desktop, apocalypse, linux, ...) and per boss
 entities/index.js   entity manifest (list of files to load)
-levels/             _TEMPLATE.js, level01.js … level10.js
-levels/index.js     level manifest (play order)
+weapons/            one file per weapon + weapons/index.js manifest
+worlds/             one file per world (worldNN.js, _TEMPLATE.js) + worlds/index.js (play order)
+levels/worldNN/     each world's level files; levels/_archive/ holds unused levels to reuse
 ```
 
 Everything uses plain `<script>` tags (no ES modules), so it works straight from disk.
 
 ## Add a new level
 
-1. Copy `levels/_TEMPLATE.js` to `levels/level11.js`.
-2. Give it a new `id` and `name`, then draw the `map` (one character per tile; all rows the same length).
-3. Add `"level11.js",` to `LEVEL_FILES` in `levels/index.js`.
-4. Open `index.html`. Problems are printed in the browser console (F12) as
-   `[level 11 "…"] ERROR: …` and the level card turns red. The check catches a missing start,
-   a missing exit, unknown legend characters, legend entries pointing at unregistered entity
-   types, and uneven row lengths.
+1. Copy `levels/_TEMPLATE.js` into a world's folder, e.g. `levels/world02/level06.js`.
+2. Give it an `id` (unique inside the world) and a `name`, then draw the `map` (one character
+   per tile; all rows the same length).
+3. Add `"level06.js",` to that world's `levels` list in `worlds/world02.js`.
+4. Open `index.html`. Problems are printed in the browser console (F12) and the level card
+   turns red. The check catches a missing start, a missing exit, unknown legend characters,
+   legend entries pointing at unregistered entity types, and uneven row lengths.
+
+To add a whole world, copy `worlds/_TEMPLATE.js` (see the comments in it) and list it in
+`worlds/index.js`.
 
 ## Add a new enemy (or hazard)
 
@@ -188,12 +221,28 @@ Stomping, dash hits, pulse shots and contact damage are handled by the engine fr
 `props` flags (each can also be a function `(e, world) => bool`, e.g. "only stompable while stunned").
 Other hooks: `onTouch`, `onDamage`, `onDeath`, `onRespawn`, `blocks` (see `core/registry.js`).
 
+Give it a name and one line for the player, and the game does the rest (a one-time tip the
+first time it's seen, plus its Help / Codex entry with a live icon):
+
+```js
+registerEntity("hopper", {
+  info: { name: "Hopper", desc: "Hops on a beat. Stomp it between hops." },
+  // tip: false → Codex only (obvious things); kind: "item" → Items tab
+  ...
+});
+```
+
+Weapons get a `desc` next to their `label`; abilities get `name`, `desc`, `how` (with
+`{key}` tokens) and, if the player presses something, `action` + `label` (its touch button)
+in `UPGRADE_INFO` — the Controls page, touch buttons and HUD pick them up automatically.
+
 ## Add a new power-up
 
 Temporary power-ups live in the `POWERUPS` table in `entities/pickups.js`
 (`shield`, `magnet`, `speed`, `health`). To add one:
 
-1. Add an entry, e.g. `jump: { color: "#7dff4a", label: "SPRING", frames: 600, text: "SUPER JUMP" }`.
+1. Add an entry, e.g. `jump: { color: "#7dff4a", label: "SPRING", frames: 600, text: "SUPER JUMP", desc: "Jump much higher for a while." }`
+   (`desc` is shown the first time it's picked up and in the Codex).
 2. Add `jump: 0` to `this.powers` in `entities/player.js` and use it where it matters
    (e.g. `if (this.powers.jump > 0) …` in the jump code).
 3. Place it in a level with the legend value `"powerup:jump"`.
