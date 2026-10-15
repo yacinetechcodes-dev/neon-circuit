@@ -20,6 +20,12 @@ const Input = {
     Enter: "confirm", NumpadEnter: "confirm",
     Backspace: "back",
     KeyM: "mute",
+    KeyQ: "weaponPrev", KeyE: "weaponNext", KeyR: "freeze", KeyV: "freeze", KeyT: "shrink", KeyB: "block",
+    KeyY: "minimize", KeyU: "maximize", Tab: "altTab", KeyI: "altTab",
+    KeyG: "grapple", KeyN: "slam", KeyH: "jetpack",
+    KeyO: "sudo", Backslash: "pipe", Period: "pipe", Delete: "kill", Comma: "kill",
+    Digit1: "weapon1", Digit2: "weapon2", Digit3: "weapon3", Digit4: "weapon4", Digit5: "weapon5",
+    Digit6: "weapon6", Digit7: "weapon7", Digit8: "weapon8", Digit9: "weapon9",
   },
   // Up/W also jump during gameplay (handled in down()/pressed()).
   _down: {},
@@ -93,6 +99,19 @@ const Input = {
       { action: "jump", x: VIEW_W - 70, y, r, label: "JUMP" },
       { action: "dash", x: VIEW_W - 176, y: y + 6, r: 38, label: "DASH" },
       { action: "shoot", x: VIEW_W - 92, y: y - 102, r: 36, label: "FIRE" },
+      { action: "weaponNext", x: VIEW_W - 196, y: y - 92, r: 26, label: "WPN" },
+      { action: "freeze", x: VIEW_W - 256, y: y - 30, r: 26, label: "FRZ" },
+      { action: "shrink", x: VIEW_W - 160, y: y - 176, r: 24, label: "MINI" },
+      { action: "block", x: VIEW_W - 226, y: y - 160, r: 24, label: "BLK" },
+      { action: "minimize", x: VIEW_W - 290, y: y - 96, r: 22, label: "MIN" },
+      { action: "maximize", x: VIEW_W - 300, y: y - 40, r: 22, label: "MAX" },
+      { action: "altTab", x: VIEW_W - 92, y: y - 186, r: 24, label: "TAB" },
+      { action: "grapple", x: VIEW_W - 160, y: y - 176, r: 24, label: "HOOK" },
+      { action: "slam", x: VIEW_W - 290, y: y - 96, r: 22, label: "SLAM" },
+      { action: "jetpack", x: VIEW_W - 300, y: y - 40, r: 22, label: "JET" },
+      { action: "sudo", x: VIEW_W - 226, y: y - 160, r: 24, label: "SUDO" },
+      { action: "pipe", x: VIEW_W - 92, y: y - 186, r: 24, label: "PIPE" },
+      { action: "kill", x: VIEW_W - 256, y: y - 30, r: 26, label: "KILL" },
       { action: "pause", x: VIEW_W - 34, y: 84, r: 22, label: "II" },
     ];
   },
@@ -134,7 +153,21 @@ const Input = {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (const b of this.buttons) {
-      if (b.action === "shoot" && !(Game.world && Game.world.player.has("pulse"))) continue;
+      const pl = Game.world && Game.world.player;
+      if (b.action === "shoot" && !(pl && pl.weapons.length)) continue;
+      if (b.action === "weaponNext" && !(pl && pl.weapons.length > 1)) continue;
+      if (b.action === "freeze" && !(pl && pl.has("freeze"))) continue;
+      if (b.action === "shrink" && !(pl && pl.has("shrink"))) continue;
+      if (b.action === "block" && !(pl && pl.has("blockPlace"))) continue;
+      if (b.action === "minimize" && !(pl && pl.has("minimize"))) continue;
+      if (b.action === "maximize" && !(pl && pl.has("maximize"))) continue;
+      if (b.action === "altTab" && !(pl && pl.has("altTab"))) continue;
+      if (b.action === "grapple" && !(pl && pl.has("grapple"))) continue;
+      if (b.action === "slam" && !(pl && pl.has("groundSlam"))) continue;
+      if (b.action === "jetpack" && !(pl && pl.has("jetpack"))) continue;
+      if (b.action === "sudo" && !(pl && pl.has("sudo"))) continue;
+      if (b.action === "pipe" && !(pl && pl.has("pipe"))) continue;
+      if (b.action === "kill" && !(pl && pl.has("killProcess"))) continue;
       if (b.action === "dash" && !(Game.world && Game.world.player.has("dash"))) continue;
       const on = this.down(b.action);
       ctx.globalAlpha = on ? 0.55 : 0.28;

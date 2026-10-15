@@ -58,10 +58,7 @@ registerLevel({
     {at: [140,11], range: -4},
   ],
   scripts: [
-    {at: [8,0], size: [1,22], actions: [{type: "hint", text: "Press {jump} again in mid-air to DOUBLE JUMP", time: 4}]},
-    {at: [35,12], size: [3,6], actions: [{type: "hint", text: "Hold toward a wall to slide, press {jump} to WALL-JUMP", time: 5}]},
-    {at: [54,0], size: [1,22], actions: [{type: "hint", text: "Ride the moving platforms across the data stream", time: 4}]},
-    {at: [110,0], size: [1,22], actions: [{type: "hint", text: "Lifts carry you up — hop on!", time: 3}]},
-    {at: [122,0], size: [1,22], actions: [{type: "hint", text: "Stomping a drone bounces you up and restores your double jump", time: 4}]},
+    {at: [8,0], size: [1,22], actions: [{type: "hint", text: "{jump} in mid-air: double jump", key: "doubleJump", time: 2.5}]},
+    {at: [35,12], size: [3,6], actions: [{type: "hint", text: "Wall + {jump}: wall-jump", key: "wallJump", time: 2.5}]},
   ],
 });

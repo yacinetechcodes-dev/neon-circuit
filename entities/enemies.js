@@ -175,6 +175,7 @@ registerEntity("charger", {
     dashable: (e) => e.mode === "stun",
   }),
   init(e) { e.dir = e.opts.dir === "right" ? 1 : -1; e.mode = "patrol"; e.timer = 0; e.cool = 0; },
+  onDeath() { Save.markSeen("charger"); },
   update(e, world) {
     const p = world.player;
     if (e.cool > 0) e.cool--;
@@ -254,6 +255,7 @@ registerEntity("sentinel", {
   size: [28, 32],
   props: Object.assign({}, ENEMY_BASE, { speed: 0.6, color: "#9d6bff" }),
   init(e) { e.dir = e.opts.dir === "right" ? 1 : -1; },
+  onDeath() { Save.markSeen("sentinel"); },
   /** Attacks travelling against the facing direction hit the shield. */
   blocks(e, world, attackDir) { return attackDir === -e.dir; },
   update(e, world) {
@@ -336,44 +338,7 @@ registerEntity("bullet", {
   },
 });
 
-// ---------------------------------------------------------------- pulseShot
-// The player's ranged attack.
-registerEntity("pulseShot", {
-  size: [14, 8],
-  layer: 2,
-  props: { transient: true, alwaysActive: true },
-  init(e) { e.life = 45; },
-  update(e, world) {
-    e.x += e.vx;
-    if (--e.life <= 0) { e.dead = true; return; }
-    if (Physics.solidAtPx(world, U.cx(e), U.cy(e))) {
-      e.dead = true;
-      world.particles.burst(U.cx(e), U.cy(e), 6, "#7dff4a", 2);
-      return;
-    }
-    for (const o of world.entities) {
-      if (o.dead || !o.active || o === e || !U.overlap(e, o)) continue;
-      if (o.name === "bullet") { o.dead = true; e.dead = true; sfx.play("hit"); world.particles.burst(U.cx(o), U.cy(o), 8, "#ffffff", 3); return; }
-      if (!o.enemy) continue;
-      e.dead = true;
-      const dir = U.sign(e.vx);
-      const blocked = (o.def.blocks && o.def.blocks(o, world, dir)) || !U.flag(o.shootable, o, world);
-      if (blocked) {
-        sfx.play("blocked");
-        world.particles.burst(U.cx(e), U.cy(e), 8, "#5ef0ff", 3);
-        world.particles.ring(U.cx(e), U.cy(e), "#5ef0ff", 10, 10);
-      } else {
-        world.damageEntity(o, 1, "shot");
-      }
-      return;
-    }
-  },
-  draw(e, ctx) {
-    U.glow(ctx, U.cx(e), U.cy(e), 16, "#7dff4a", 0.9);
-    ctx.fillStyle = "#e6ffd6";
-    ctx.fillRect(e.x, e.y + 2, e.w, 4);
-  },
-});
+// The player's projectiles live in core/weapons.js ("playerShot").
 
 // ---------------------------------------------------------------- shockwave
 // Ground wave created by heavy landings (bosses). Jump over it.

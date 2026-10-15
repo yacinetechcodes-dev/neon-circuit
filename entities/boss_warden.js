@@ -148,7 +148,6 @@ registerEntity("warden", {
           world.camera.shake(12);
           sfx.play("slam");
           world.particles.burst(e.dir > 0 ? e.x + e.w : e.x, U.cy(e), 30, "#ffe14d", 6, { glow: true });
-          world.showHint("OVERHEATED! STRIKE THE CORE!", 2);
         }
         return;
       }
@@ -167,6 +166,7 @@ registerEntity("warden", {
     e.hp -= 1;
     e.flash = 10;
     e.iframes = 30;
+    Save.markSeen("warden");
     world.camera.shake(7);
     sfx.play("bossHit");
     world.particles.burst(U.cx(e), e.y + 10, 20, "#ffffff", 5);
@@ -174,7 +174,7 @@ registerEntity("warden", {
     if (!e.enraged && e.hp <= e.maxHp / 2) {
       e.enraged = true;
       e.timer = Math.min(e.timer, 40);
-      world.banner = { text: "WARDEN OVERCLOCKED", sub: "", t: 90, max: 90, color: "#ff3355" };
+      world.banner = { text: "OVERCLOCKED", sub: "", t: 90, max: 90, color: "#ff3355" };
     }
     return true;
   },

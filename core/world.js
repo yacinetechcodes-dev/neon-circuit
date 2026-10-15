@@ -6,20 +6,26 @@
 class World {
   /**
    * @param def       level definition (from registerLevel)
-   * @param index     position in the level manifest
+   * @param index     position of the level inside its world
    * @param upgrades  permanent upgrades the player owns when starting
+   * @param opts      { worldDef, weapons: [names], weapon: selected name, lives }
    */
-  constructor(def, index, upgrades) {
+  constructor(def, index, upgrades, opts = {}) {
     this.def = def;
     this.index = index;
+    this.worldDef = opts.worldDef || def.world || null;
     const lv = LevelLoader.parse(def);
     this.w = lv.w; this.h = lv.h; this.tiles = lv.tiles;
     this.pw = lv.w * TILE; this.ph = lv.h * TILE;
     this.gravity = def.gravity || 1;
 
+    // Theme: engine defaults ← world theme ← level theme.
+    const wTheme = Object.assign({}, (this.worldDef && this.worldDef.theme) || {});
+    this.skins = wTheme.skins || {};   // per-entity look overrides, e.g. { spike: { color } }
+    delete wTheme.skins;
     const th = Object.assign(
       { bgTop: "#050818", bgBottom: "#0a1a3a", accent: "#00f0ff", gridColor: "#0b3a5a", style: "boot" },
-      def.theme || {}
+      wTheme, def.theme || {}
     );
     th.tileFill = th.tileFill || U.mix(th.bgBottom, th.gridColor, 0.55);
     th.tileInner = th.tileInner || U.mix(th.bgTop, th.gridColor, 0.35);
@@ -38,6 +44,7 @@ class World {
     this.time = 0;            // frames since the level started
     this.levelTime = 0;       // frames counted for the stats (not while dying)
     this.deaths = 0;
+    this.lives = opts.lives == null ? 3 : opts.lives; // per attempt; 0 → restart the level
     this.cores = 0; this.coresTotal = 0;
     this.secrets = 0; this.secretsTotal = 0;
     this.hint = null;         // { text, t, max }
@@ -53,7 +60,7 @@ class World {
     // Player.
     const sx = lv.start.x * TILE + (TILE - Player.W) / 2;
     const sy = (lv.start.y + 1) * TILE - Player.H;
-    this.player = new Player(this, sx, sy, upgrades);
+    this.player = new Player(this, sx, sy, upgrades, opts.weapons || [], opts.weapon);
     this.checkpoint = { x: sx, y: sy, entity: null };
 
     // Entities from the map.
@@ -64,7 +71,7 @@ class World {
       void e;
     }
     this.camera.snap(this.player);
-    this.banner = { text: def.name.toUpperCase(), sub: `LEVEL ${index + 1}`, t: 150, max: 150, color: th.accent };
+    this.banner = { text: def.name.toUpperCase(), sub: "", t: 120, max: 120, color: th.accent };
   }
 
   // ---------------------------------------------------------------- spawning
@@ -82,6 +89,8 @@ class World {
       const v = def.props[k];
       e[k] = v && typeof v === "object" && !Array.isArray(v) ? Object.assign({}, v) : v;
     }
+    // World skin (colours etc.), then per-entity overrides.
+    if (this.skins && this.skins[name]) Object.assign(e, this.skins[name]);
     // Overrides may set any simple property directly (speed, hp, range…).
     for (const k in opts) if (typeof opts[k] !== "object") e[k] = opts[k];
     e.maxHp = e.hp;
@@ -108,9 +117,20 @@ class World {
   }
 
   // ------------------------------------------------------------------ update
+  /** Clock for time-driven hazards: stands still while a Freeze Process runs. */
+  get htime() { return this.time - (this.frozenFrames || 0); }
+
+  /** Freeze Process: stop enemies, projectiles and moving hazards for a while. */
+  freeze(frames) {
+    this.frozen = frames;
+    this.camera.shake(3);
+  }
+
   update() {
     this.time++;
     const p = this.player;
+    if (this.frozen > 0) { this.frozen--; this.frozenFrames = (this.frozenFrames || 0) + 1; }
+    if (this.freezeCool > 0) this.freezeCool--;
     if (this.state === "play" && !this.cutscene) this.levelTime++;
 
     // Which entities are simulated this frame (near the camera).
@@ -128,6 +148,8 @@ class World {
     for (let i = 0; i < n; i++) {
       const e = list[i];
       if (!e || !e.active || e.dead) continue;
+      if (this.frozen > 0 && World.freezes(e)) continue; // held in place by Freeze Process
+      if (e.stun > 0) { e.stun--; continue; }            // knocked out by a Ground Slam
       e.t++;
       if (e.flash > 0) e.flash--;
       if (e.iframes > 0) e.iframes--;
@@ -179,7 +201,7 @@ class World {
   /** Standard enemy contact: dash-hit, stomp, or get hurt. */
   enemyContact(e) {
     const p = this.player;
-    if (p.dashing > 0 && e.def.blocks && e.def.blocks(e, this, p.dashDir)) {
+    if (p.dashing > 0 && e.def.blocks && e.def.blocks(e, this, p.dashDir) && !p.has("dataDash") && !(p.sudo > 0)) {
       // Shield in the way: deflected, nobody is hurt.
       p.dashing = 0;
       p.vx = -p.dashDir * 6;
@@ -196,7 +218,7 @@ class World {
     }
     const falling = p.vy > 0 || p.lastVy > 0;
     if (falling && p.prevY + p.h <= e.y + 12) {
-      const s = U.flag(e.stompable, e, this);
+      const s = e.stun > 0 ? true : U.flag(e.stompable, e, this);
       if (s === true) {
         sfx.play("stomp");
         this.damageEntity(e, 1, "stomp");
@@ -211,6 +233,7 @@ class World {
       }
     }
     if (p.dashing > 0) return;       // dashing = immune to enemy contact
+    if (e.stun > 0) return;          // stunned enemies are harmless
     if (e.hurts !== false) this.hurtPlayer(1, e);
   }
 
@@ -245,6 +268,7 @@ class World {
   hurtPlayer(amount, src, opts = {}) {
     const p = this.player;
     if (this.state !== "play" || !p.alive || p.invuln > 0) return false;
+    if (p.dashing > 0 && p.has("dataDash")) return false; // Data Dash: untouchable
     if (p.powers.shield > 0) {
       p.powers.shield = 0;
       p.invuln = 60;
@@ -252,10 +276,10 @@ class World {
       this.particles.ring(U.cx(p), U.cy(p), "#59a7ff", 34);
       this.camera.shake(5);
       sfx.play("shield");
-      this.showHint("SHIELD ABSORBED THE HIT", 1.5);
       return true;
     }
     p.hp -= amount;
+    p.hook = null; p.slamming = false;
     this.hurtFlash = 14;
     this.camera.shake(8);
     this.particles.burst(U.cx(p), U.cy(p), 16, "#ff3355", 4);
@@ -272,6 +296,16 @@ class World {
   killPlayer() {
     const p = this.player;
     if (!p.alive) return;
+    // Rewind (World 3 ability): once per level, undo a death.
+    if (p.has("rewind") && !this.rewindUsed && p.rewindTo(this)) {
+      this.rewindUsed = true;
+      this.rewindFx = 45;
+      this.camera.snap(p);
+      this.camera.shake(6);
+      sfx.play("rewind");
+      Save.markSeen("rewind");
+      return;
+    }
     p.alive = false;
     p.hp = 0;
     this.deaths++;
@@ -354,7 +388,7 @@ class World {
     sfx.play("bossWake");
     if (arena) this.camera.lock = arena;
     this.camera.shake(10);
-    this.banner = { text: e.title || "WARNING", sub: "HOSTILE PROCESS DETECTED", t: 120, max: 120, color: "#ff3df0" };
+    this.banner = { text: e.title || "WARNING", sub: "", t: 100, max: 120, color: "#ff3df0" };
   }
   endBoss(e) {
     this.flags.bossFight = false;
@@ -363,7 +397,7 @@ class World {
     this.camera.shake(16);
     sfx.play("bossDefeat");
     this.fade = 0.8;
-    this.banner = { text: (e.title || "BOSS") + " OFFLINE", sub: "THE EXIT IS OPEN", t: 150, max: 150, color: "#7dff4a" };
+    this.banner = { text: (e.title || "BOSS") + " OFFLINE", sub: "", t: 120, max: 150, color: "#7dff4a" };
   }
 
   // ------------------------------------------------------------- scripts
@@ -389,7 +423,11 @@ class World {
 
   runAction(a) {
     switch (a.type) {
-      case "hint": this.showHint(a.text, a.time || 4); break;
+      case "hint":
+        // Keyed hints show once ever, and never after the mechanic was used.
+        if (a.key) { if (Save.seen(a.key)) break; Save.markSeen(a.key); }
+        this.showHint(a.text, a.time || 2.5);
+        break;
       case "banner":
         this.banner = { text: a.text, sub: a.sub || "", t: (a.time || 2.5) * FPS, max: (a.time || 2.5) * FPS, color: a.color || this.theme.accent };
         break;
@@ -422,6 +460,7 @@ class World {
         if (e.layer !== L || e.dead || !e.def.draw) continue;
         if (!e.alwaysDraw && !U.overlap(e, vis)) continue;
         e.def.draw(e, ctx, this);
+        if (e.stun > 0) drawStun(ctx, e, this.time);
       }
     };
     drawLayer(0);
@@ -433,6 +472,21 @@ class World {
     drawLayer(3);
     ctx.restore();
 
+    if (this.rewindFx > 0) {
+      // Rewind: VHS-style tracking bands.
+      this.rewindFx--;
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = `rgba(255,236,39,${0.05 + (this.rewindFx / 45) * 0.12})`;
+        ctx.fillRect(0, ((this.time * 9 + i * 97) % VIEW_H), VIEW_W, 6 + i * 2);
+      }
+    }
+    if (this.frozen > 0) {
+      // Freeze Process: cold tint + drifting scanlines.
+      ctx.fillStyle = `rgba(80,255,200,${Math.min(0.12, this.frozen / 300)})`;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      ctx.fillStyle = "rgba(160,255,220,0.06)";
+      for (let y = (this.time * 2) % 6; y < VIEW_H; y += 6) ctx.fillRect(0, y, VIEW_W, 1);
+    }
     if (this.hurtFlash > 0) {
       ctx.fillStyle = `rgba(255,30,70,${this.hurtFlash / 40})`;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -441,5 +495,21 @@ class World {
       ctx.fillStyle = `rgba(5,8,24,${Math.min(1, this.fade)})`;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     }
+  }
+}
+
+/** Which entities Freeze Process stops: regular enemies, enemy projectiles
+ *  and moving / cycling hazards. Bosses and pickups keep running. */
+World.FREEZE_TYPES = new Set(["bullet", "shockwave", "movingPlatform", "fallingPlatform", "crusher",
+  "laser", "electric", "laserWall", "timedGate", "glitchBlock", "pixelWall", "vanishBlock", "closingWindow", "bluePanel"]);
+World.freezes = (e) => !e.noFreeze && ((e.enemy && !e.isBoss) || World.FREEZE_TYPES.has(e.name) || !!e.freezable);
+
+/** Ground Slam stun: little squares circling above the enemy. */
+function drawStun(ctx, e, time) {
+  const cx = e.x + e.w / 2, cy = e.y - 6;
+  ctx.fillStyle = "#ffe08a";
+  for (let i = 0; i < 3; i++) {
+    const a = time * 0.15 + i * 2.1;
+    ctx.fillRect(cx + Math.cos(a) * 12 - 2, cy + Math.sin(a) * 4 - 2, 4, 4);
   }
 }

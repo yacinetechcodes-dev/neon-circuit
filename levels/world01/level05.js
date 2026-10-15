@@ -74,9 +74,6 @@ registerLevel({
     {at: [217,6], arena: [202,2,30,17], hp: 15},
   ],
   scripts: [
-    {at: [6,0], size: [1,22], actions: [{type: "hint", text: "Final sector: everything you've learned, all at once", time: 4}]},
-    {at: [164,0], size: [1,22], actions: [{type: "hint", text: "The Warden is back — faster. Same weakness!", time: 3}]},
     {at: [192,0], size: [1,22], actions: [{type: "pan", to: [217,9], time: 2.2}, {type: "shake", amount: 6}]},
-    {at: [206,0], size: [1,22], actions: [{type: "hint", text: "When the shield opens and the core sinks — STRIKE!", time: 4}]},
   ],
 });

@@ -9,7 +9,7 @@
 function cycleState(world, on, off, offset) {
   if (!off) return "on";
   const period = on + off;
-  const t = ((world.time / FPS + (offset || 0)) % period + period) % period;
+  const t = ((world.htime / FPS + (offset || 0)) % period + period) % period;
   if (t < on) return "on";
   if (t > period - 0.6) return "warn";
   return "off";
@@ -37,8 +37,27 @@ registerEntity("spike", {
   },
   draw(e, ctx) {
     const x = e.cellX, y = e.cellY;
-    ctx.fillStyle = "#5a1430";
-    ctx.strokeStyle = "#ff3355";
+    if (e.pixel) {
+      // Chunky stepped spikes (World 3 skin).
+      ctx.fillStyle = e.color;
+      const step = (bx, by, dx, dy, along) => { // 3 steps per spike
+        for (let k = 0; k < 3; k++) {
+          const len = 16 - k * 6, off = k * 3;
+          if (along === "h") ctx.fillRect(bx + off, by + dy * k * 5, len, 5);
+          else ctx.fillRect(bx + dx * k * 5, by + off, 5, len);
+        }
+      };
+      for (let i = 0; i < 2; i++) {
+        const o = i * 16;
+        if (e.dir === "down") step(x + o, y, 0, 1, "h");
+        else if (e.dir === "left") step(x + 27, y + o, -1, 0, "v");
+        else if (e.dir === "right") step(x, y + o, 1, 0, "v");
+        else step(x + o, y + 27, 0, -1, "h");
+      }
+      return;
+    }
+    ctx.fillStyle = e.fill || "#5a1430";   // world skins may override fill / color
+    ctx.strokeStyle = e.color;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (let i = 0; i < 2; i++) {
@@ -235,7 +254,7 @@ registerEntity("movingPlatform", {
     e.period = Math.max(60, (2 * e.dist / e.speed) * 1.25);
   },
   update(e, world) {
-    const k = 0.5 - 0.5 * Math.cos(((world.time + e.offset) / e.period) * Math.PI * 2);
+    const k = 0.5 - 0.5 * Math.cos(((world.htime + e.offset) / e.period) * Math.PI * 2);
     const off = e.dirSign * e.dist * k;
     const tx = e.axis === "h" ? e.home.x + off : e.home.x;
     const ty = e.axis === "v" ? e.home.y + off : e.home.y;

@@ -11,8 +11,8 @@ const UI = {
   keys(text) {
     const touch = Input.touchMode;
     const map = touch
-      ? { move: "◀ ▶", jump: "JUMP", dash: "DASH", shoot: "FIRE", down: "▼", pause: "II" }
-      : { move: "← → / A D", jump: "SPACE", dash: "SHIFT", shoot: "F", down: "↓ / S", pause: "ESC" };
+      ? { move: "◀ ▶", jump: "JUMP", dash: "DASH", shoot: "FIRE", down: "▼", pause: "II", swap: "WPN", freeze: "FRZ", shrink: "MINI", block: "BLK", minimize: "MIN", maximize: "MAX", alttab: "TAB", grapple: "HOOK", slam: "SLAM", jetpack: "JET", sudo: "SUDO", pipe: "PIPE", kill: "KILL" }
+      : { move: "← → / A D", jump: "SPACE", dash: "SHIFT", shoot: "F", down: "↓ / S", pause: "ESC", swap: "Q / E", freeze: "R", shrink: "T", block: "B", minimize: "Y", maximize: "U", alttab: "TAB / I", grapple: "G", slam: "↓ / N", jetpack: "H", sudo: "O", pipe: "\\ / .", kill: "DEL / ," };
     return text.replace(/\{(\w+)\}/g, (m, k) => map[k] || m);
   },
 
@@ -69,6 +69,17 @@ const UI = {
     ctx.fillRect(cx + 104, 23, 12, 12);
     this.text(ctx, `${world.secrets}/${world.secretsTotal}`, cx + 122, 35, { size: 15, color: "#ffe9a0" });
 
+    // Lives (per attempt): small visor icons, dim when lost.
+    const lx = cx + 178;
+    this.panel(ctx, lx, 12, 76, 34, th.accent, 0.6);
+    for (let i = 0; i < 3; i++) {
+      const on = i < (world.lives == null ? 3 : world.lives);
+      ctx.fillStyle = on ? "#14203c" : "#0c1222";
+      U.roundRect(ctx, lx + 8 + i * 22, 20, 16, 18, 4); ctx.fill();
+      ctx.fillStyle = on ? "#00f0ff" : "#1c2a40";
+      ctx.fillRect(lx + 11 + i * 22, 25, 10, 3);
+    }
+
     // Level name + time.
     this.text(ctx, world.def.name.toUpperCase(), VIEW_W / 2, 30, { size: 14, align: "center", color: U.rgba(th.accent, 0.9) });
     this.panel(ctx, VIEW_W - 132, 12, 120, 34, th.accent, 0.6);
@@ -91,7 +102,12 @@ const UI = {
     // (On touch screens they sit under the HUD, away from the buttons.)
     let ux = Input.touchMode ? px : 14;
     const uy = Input.touchMode ? 54 : VIEW_H - 40;
-    const ups = [["doubleJump", p.airJumps > 0 || p.onGround], ["dash", p.canDash && p.dashCool <= 0], ["pulse", p.shootCool <= 0]];
+    const ups = [["doubleJump", p.airJumps > 0 || p.onGround], [p.has("dataDash") ? "dataDash" : "dash", p.canDash && p.dashCool <= 0],
+      ["freeze", !(world.freezeCool > 0)], ["rootAccess", true],
+      ["shrink", true], ["blockPlace", !(p.blockCool > 0)], ["rewind", !world.rewindUsed],
+      ["minimize", true], ["maximize", true], ["altTab", true],
+      ["grapple", true], ["groundSlam", true], ["jetpack", !(p.jetCool > 0)],
+      ["sudo", !(p.sudoCool > 0) || p.sudo > 0], ["pipe", true], ["killProcess", !(p.killCool > 0)]];
     for (const [k, ready] of ups) {
       if (!p.has(k)) continue;
       const color = ready ? "#ffd23d" : "#6a5a2a";
@@ -99,29 +115,36 @@ const UI = {
       PowerIcon(ctx, k, ux + 14, uy + 14, color);
       ux += 34;
     }
-    if (Input.touchMode) return; // touch buttons occupy the bottom corners
 
-    // Boss bar.
-    const b = world.boss;
-    if (b && !b.dead && b.mode !== "sleep") {
-      const w = 420, x = VIEW_W / 2 - w / 2, y = VIEW_H - 44;
-      this.panel(ctx, x - 10, y - 22, w + 20, 44, "#ff3df0", 0.75);
-      this.text(ctx, b.title || "BOSS", VIEW_W / 2, y - 6, { size: 13, align: "center", color: "#ffb3f6" });
-      ctx.fillStyle = "#2a0f2e"; ctx.fillRect(x, y, w, 10);
-      const k = Math.max(0, b.hp / b.maxHp);
-      ctx.fillStyle = b.flash ? "#ffffff" : "#ff3df0";
-      ctx.fillRect(x, y, w * k, 10);
-      ctx.strokeStyle = "#ff3df0"; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, 9);
+    // Current weapon: icon, name, charges.
+    const wd = p.weaponDef && p.weaponDef();
+    if (wd) {
+      const name = p.weapons[p.weaponIdx];
+      const wy = Input.touchMode ? 88 : uy;
+      const wx = Input.touchMode ? 14 : ux;
+      this.panel(ctx, wx, wy, 112, 28, wd.color, 0.55);
+      if (wd.icon) wd.icon(ctx, wx + 14, wy + 14, p.shootCool <= 0 ? wd.color : U.mix(wd.color, "#000000", 0.5));
+      this.text(ctx, wd.label, wx + 28, wy + 13, { size: 11, color: wd.color });
+      if (wd.ammo != null) {
+        for (let i = 0; i < wd.ammo; i++) {
+          ctx.fillStyle = i < p.ammo[name] ? wd.color : U.rgba(wd.color, 0.2);
+          ctx.fillRect(wx + 28 + i * (76 / wd.ammo), wy + 18, 76 / wd.ammo - 2, 4);
+        }
+      } else this.text(ctx, "∞", wx + 28, wy + 24, { size: 11, color: U.rgba(wd.color, 0.7) });
+      if (p.weapons.length > 1) this.text(ctx, `${p.weaponIdx + 1}/${p.weapons.length}`, wx + 106, wy + 13, { size: 10, align: "right", color: "#7f9fc0", weight: "normal" });
     }
+    this.drawBossBar(ctx, world);
   },
 
-  drawBossBarTouch(ctx, world) {
+  /** Thin boss health bar at the top centre, name above — clear of the action. */
+  drawBossBar(ctx, world) {
     const b = world.boss;
-    if (!Input.touchMode || !b || b.dead || b.mode === "sleep") return;
-    const w = 360, x = VIEW_W / 2 - w / 2, y = 56;
-    this.text(ctx, b.title || "BOSS", VIEW_W / 2, y - 4, { size: 12, align: "center", color: "#ffb3f6" });
-    ctx.fillStyle = "#2a0f2e"; ctx.fillRect(x, y, w, 8);
-    ctx.fillStyle = "#ff3df0"; ctx.fillRect(x, y, w * Math.max(0, b.hp / b.maxHp), 8);
+    if (!b || b.dead || b.mode === "sleep") return;
+    const w = 360, x = VIEW_W / 2 - w / 2, y = 66;
+    this.text(ctx, b.title || "BOSS", VIEW_W / 2, y - 6, { size: 12, align: "center", color: "#ffb3f6" });
+    ctx.fillStyle = "rgba(42,15,46,0.85)"; ctx.fillRect(x, y, w, 5);
+    ctx.fillStyle = b.flash ? "#ffffff" : "#ff3df0";
+    ctx.fillRect(x, y, w * Math.max(0, b.hp / b.maxHp), 5);
   },
 
   drawHint(ctx, world) {

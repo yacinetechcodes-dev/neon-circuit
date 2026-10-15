@@ -160,7 +160,6 @@ registerEntity("mainframe", {
         e.timer++;
         const sit = e.floorY - e.h - 4;
         const openFor = e.phase === 3 ? 170 : 210;
-        if (e.timer === 1) world.showHint("CORE EXPOSED — STRIKE NOW!", 2);
         if (e.timer < 50) {
           this.drift(e, e.x, sit, 0.08);
         } else if (e.timer < 50 + openFor) {
@@ -209,7 +208,7 @@ registerEntity("mainframe", {
       e.timer = 999; // end the exposure: it rises and starts the next phase
       e.open = false;
       for (const o of world.entities) if (o.name === "bullet") o.dead = true;
-      world.banner = { text: `PHASE ${newPhase}`, sub: newPhase === 3 ? "OVERRIDE PROTOCOL" : "FIREWALL REBOOT", t: 100, max: 100, color: "#ff3df0" };
+      world.banner = { text: `PHASE ${newPhase}`, sub: "", t: 100, max: 100, color: "#ff3df0" };
     }
     return true;
   },

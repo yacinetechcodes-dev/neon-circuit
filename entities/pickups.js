@@ -54,7 +54,6 @@ registerEntity("secretCore", {
     world.particles.burst(U.cx(e), U.cy(e), 30, "#ffd23d", 5, { glow: true });
     world.particles.ring(U.cx(e), U.cy(e), "#ffd23d", 40, 30);
     world.camera.shake(3);
-    world.showHint("SECRET CORE FOUND!", 2.5);
   },
   draw(e, ctx, world) {
     const cx = U.cx(e), cy = U.cy(e) + Math.sin(world.time * 0.05) * 3;
@@ -86,7 +85,6 @@ registerEntity("checkpoint", {
     if (p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + 1);
     world.particles.burst(U.cx(e), e.y + 8, 24, "#7dff4a", 4, { glow: true });
     world.particles.ring(U.cx(e), e.y + 8, "#7dff4a", 30);
-    world.showHint("CHECKPOINT SAVED", 1.6);
   },
   draw(e, ctx, world) {
     const cx = U.cx(e), col = e.on ? "#7dff4a" : "#3a5a7a";
@@ -114,7 +112,7 @@ registerEntity("exit", {
   layer: 0,
   onTouch(e, world) {
     if (world.bossesAlive()) {
-      if (!e.warned) { world.showHint("EXIT LOCKED — DEFEAT THE GUARDIAN", 2); e.warned = 120; }
+      if (!e.warned) { world.showHint("LOCKED", 1); e.warned = 120; }
       return;
     }
     world.completeLevel();
@@ -148,10 +146,10 @@ registerEntity("exit", {
 // ------------------------------------------------------------ power-ups
 // Temporary power-ups. Arg selects the kind: shield | magnet | speed | health
 const POWERUPS = {
-  shield: { color: "#59a7ff", label: "SHIELD", frames: 60 * 20, text: "SHIELD — blocks one hit" },
-  magnet: { color: "#ff3df0", label: "MAGNET", frames: 60 * 12, text: "MAGNET — pulls in cores" },
-  speed: { color: "#ffb400", label: "BOOST", frames: 60 * 10, text: "SPEED BOOST" },
-  health: { color: "#ff4d6d", label: "REPAIR", frames: 0, text: "REPAIR KIT +1" },
+  shield: { color: "#59a7ff", label: "SHIELD", frames: 60 * 20, text: "SHIELD" },
+  magnet: { color: "#ff3df0", label: "MAGNET", frames: 60 * 12, text: "MAGNET" },
+  speed: { color: "#ffb400", label: "BOOST", frames: 60 * 10, text: "SPEED" },
+  health: { color: "#ff4d6d", label: "REPAIR", frames: 0, text: "+1 HP" },
 };
 
 registerEntity("powerup", {
@@ -172,7 +170,7 @@ registerEntity("powerup", {
     }
     e.dead = true;
     sfx.play("powerup");
-    world.showHint(P.text, 2);
+    world.showHint(P.text, 1.2);
     world.particles.burst(U.cx(e), U.cy(e), 20, P.color, 4, { glow: true });
     world.particles.ring(U.cx(e), U.cy(e), P.color, 30);
   },
@@ -222,6 +220,62 @@ function PowerIcon(ctx, kind, cx, cy, color) {
       ctx.beginPath(); ctx.arc(cx, cy, 6.5, -1, 1); ctx.stroke();
       ctx.beginPath(); ctx.arc(cx, cy, 6.5, Math.PI - 1, Math.PI + 1); ctx.stroke();
       break;
+    case "dataDash": // arrow made of bits
+      ctx.fillRect(cx - 7, cy - 1, 3, 3); ctx.fillRect(cx - 3, cy - 1, 3, 3);
+      ctx.beginPath(); ctx.moveTo(cx + 1, cy - 5); ctx.lineTo(cx + 7, cy + 0.5); ctx.lineTo(cx + 1, cy + 6); ctx.fill();
+      break;
+    case "freeze": // pause bars inside a ring
+      ctx.beginPath(); ctx.arc(cx, cy, 7, 0, 6.28); ctx.stroke();
+      ctx.fillRect(cx - 3, cy - 3.5, 2, 7); ctx.fillRect(cx + 1, cy - 3.5, 2, 7);
+      break;
+    case "minimize": // window → bar
+      ctx.strokeRect(cx - 6, cy - 6, 12, 8); ctx.fillRect(cx - 6, cy + 4, 12, 2);
+      break;
+    case "maximize": // small → big window
+      ctx.strokeRect(cx - 7, cy - 7, 14, 14); ctx.fillRect(cx - 7, cy - 7, 14, 3);
+      break;
+    case "grapple": // hook on a line
+      ctx.fillRect(cx - 1, cy - 7, 2, 7);
+      ctx.beginPath(); ctx.arc(cx, cy + 2, 4.5, 0, Math.PI); ctx.stroke();
+      ctx.fillRect(cx - 6, cy + 0, 2, 3);
+      break;
+    case "groundSlam": // arrow down onto a line
+      ctx.fillRect(cx - 1, cy - 7, 3, 7);
+      ctx.beginPath(); ctx.moveTo(cx - 5, cy - 1); ctx.lineTo(cx + 0.5, cy + 4); ctx.lineTo(cx + 6, cy - 1); ctx.fill();
+      ctx.fillRect(cx - 7, cy + 5, 14, 2);
+      break;
+    case "jetpack": // tank with a flame
+      ctx.strokeRect(cx - 4, cy - 7, 8, 9);
+      ctx.beginPath(); ctx.moveTo(cx - 3, cy + 3); ctx.lineTo(cx, cy + 8); ctx.lineTo(cx + 3, cy + 3); ctx.fill();
+      break;
+    case "sudo": // "#" prompt
+      ctx.fillRect(cx - 4, cy - 7, 2, 14); ctx.fillRect(cx + 2, cy - 7, 2, 14);
+      ctx.fillRect(cx - 7, cy - 3, 14, 2); ctx.fillRect(cx - 7, cy + 2, 14, 2);
+      break;
+    case "pipe": // "|" between two dots
+      ctx.fillRect(cx - 1, cy - 8, 2, 16);
+      ctx.fillRect(cx - 7, cy - 1, 3, 3); ctx.fillRect(cx + 4, cy - 1, 3, 3);
+      break;
+    case "killProcess": // crosshair
+      ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 6.28); ctx.stroke();
+      ctx.fillRect(cx - 1, cy - 9, 2, 5); ctx.fillRect(cx - 1, cy + 4, 2, 5); ctx.fillRect(cx - 9, cy - 1, 5, 2); ctx.fillRect(cx + 4, cy - 1, 5, 2);
+      break;
+    case "altTab": // two overlapping windows
+      ctx.strokeRect(cx - 7, cy - 5, 9, 8); ctx.strokeRect(cx - 2, cy - 1, 9, 8);
+      break;
+    case "shrink": // big square → small square
+      ctx.strokeRect(cx - 7, cy - 7, 10, 10); ctx.fillRect(cx + 2, cy + 2, 5, 5);
+      break;
+    case "blockPlace": // block with a plus
+      ctx.strokeRect(cx - 6, cy - 6, 12, 12); ctx.fillRect(cx - 1, cy - 4, 2, 8); ctx.fillRect(cx - 4, cy - 1, 8, 2);
+      break;
+    case "rewind": // double left arrow
+      for (const o of [0, 6]) { ctx.beginPath(); ctx.moveTo(cx + 2 - o, cy - 5); ctx.lineTo(cx - 4 - o, cy); ctx.lineTo(cx + 2 - o, cy + 5); ctx.fill(); }
+      break;
+    case "rootAccess": // key: ring + bit
+      ctx.beginPath(); ctx.arc(cx - 3, cy, 3.5, 0, 6.28); ctx.stroke();
+      ctx.fillRect(cx, cy - 1, 7, 2); ctx.fillRect(cx + 4, cy + 1, 2, 3);
+      break;
     case "hpUp":
       ctx.beginPath();
       ctx.moveTo(cx, cy - 7); ctx.lineTo(cx + 6, cy); ctx.lineTo(cx, cy + 7); ctx.lineTo(cx - 6, cy);
@@ -235,10 +289,10 @@ function PowerIcon(ctx, kind, cx, cy, color) {
 // Optional in-level pickup that grants a permanent upgrade right away.
 // Usage in a legend: "J": "upgrade:dash"
 const UPGRADE_INFO = {
-  doubleJump: { name: "DOUBLE JUMP", how: "Press {jump} again in mid-air." },
-  dash: { name: "PHASE DASH", how: "Press {dash} to dash. Dashing through foes damages them." },
-  pulse: { name: "PULSE SHOT", how: "Press {shoot} to fire energy pulses." },
-  hpUp: { name: "ARMOR PLATING", how: "+1 maximum health." },
+  doubleJump: { name: "DOUBLE JUMP", how: "{jump} in mid-air" },
+  dash: { name: "DASH", how: "{dash}" },
+  pulse: { name: "PULSE SHOT", how: "{shoot}" },
+  hpUp: { name: "ARMOR", how: "+1 max HP" },
 };
 
 registerEntity("upgrade", {
@@ -255,8 +309,7 @@ registerEntity("upgrade", {
     sfx.play("powerup");
     e.dead = true;
     const info = UPGRADE_INFO[e.kind] || { name: e.kind, how: "" };
-    world.banner = { text: info.name, sub: "UPGRADE INSTALLED", t: 150, max: 150, color: "#ffd23d" };
-    world.showHint(info.how, 4);
+    world.banner = { text: info.name, sub: UI.keys(info.how), t: 150, max: 150, color: "#ffd23d" };
     world.particles.burst(U.cx(e), U.cy(e), 40, "#ffd23d", 6, { glow: true });
   },
   draw(e, ctx, world) {
@@ -284,6 +337,7 @@ registerEntity("dashRefill", {
     if (p.has("doubleJump")) p.airJumps = 1;
     e.cool = 150;
     sfx.play("refill");
+    Save.markSeen("crystal");
     world.particles.burst(U.cx(e), U.cy(e), 16, "#ff3df0", 4);
     world.particles.ring(U.cx(e), U.cy(e), "#ff3df0", 24);
   },

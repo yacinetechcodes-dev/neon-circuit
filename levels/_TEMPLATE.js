@@ -94,6 +94,16 @@ registerLevel({
     "g": "powerup:magnet",
     "s": "powerup:speed",
     "h": "powerup:health",
+    // Level 6+ mechanics (not in the default legend — declare them like this):
+    "L": "laserWall:up",          // sliding laser fence (jump over it)
+    "l": "laserWall:down",        // sliding laser hanging from a ceiling (stay low)
+    "O": "timedGate",             // energy door on a rhythm (place at the top)
+    "U": "flipField",             // gravity points up (paint an area)
+    "J": "heavyField",            // much stronger gravity (paint an area)
+    "1": "teleporter:1",          // pads with the same id are linked
+    "a": "switch:a",              // floor switch for channel a
+    "&": "door:a",                // opens while channel a is on ("door:ab" = both)
+    "*": "kernel",                // level-10 final boss
   },
 
   // Optional per-entity settings. "at" is [column, row] of the character.
@@ -106,6 +116,10 @@ registerLevel({
   //   crusher:        delay (s), offset (s), fallSpeed, riseSpeed
   //   warden:         hp, speedMul, title, arena: [col, row, cols, rows]
   //   mainframe:      hp, title, arena: [col, row, cols, rows]
+  //   kernel:         hp, title, arena: [col, row, cols, rows]
+  //   laserWall:      range, speed, offset (frames), len, gap, on, off
+  //   timedGate:      on (s closed), off (s open), offset (s)
+  //   switch:         time (s the door stays open; 0 = for good)
   entityOverrides: [
     { at: [13, 9], speed: 1.5, range: 3 },
     { at: [29, 7], sight: 4 },
@@ -114,14 +128,17 @@ registerLevel({
   // Optional events. When the player enters the rectangle (in tiles) the
   // actions run once (set once:false to repeat each time it is entered).
   // Action types:
-  //   { type: "hint", text: "…", time: 4 }        (use {jump} {dash} {shoot} {move} {down} for key names)
+  //   { type: "hint", text: "…", key: "id" }      a few words, only for a truly new mechanic.
+  //       With a key it shows once ever, and never after the player has used it
+  //       (keys like "wallJump", "dash", "flip", "teleport" are marked automatically).
+  //       {jump} {dash} {shoot} {move} {down} become the right key names.
   //   { type: "banner", text: "…", sub: "…", time: 2.5 }
   //   { type: "pan", to: [col, row], time: 2 }     dialogue-free camera cutscene
   //   { type: "shake", amount: 8 }
   //   { type: "particles", at: [col, row], color: "#ff3df0" }
   //   { type: "flag", name: "anything", value: true }
   scripts: [
-    { at: [4, 0], size: [1, 12], actions: [{ type: "hint", text: "Welcome to your new level!", time: 3 }] },
+    { at: [4, 0], size: [1, 12], actions: [{ type: "hint", text: "{down} + {jump}: drop", key: "drop" }] },
     { at: [24, 0], size: [1, 12], actions: [{ type: "pan", to: [38, 9], time: 1.5 }] },
   ],
 });
