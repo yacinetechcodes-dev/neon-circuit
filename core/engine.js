@@ -46,6 +46,7 @@ const Game = {
     Input.init(canvas);
     if (this.debug) Object.assign(Input.keyMap, { F9: "debugGod", F10: "debugNext" });
     Save.load();
+    Gfx.init();
     this.resize();
     window.addEventListener("resize", () => this.resize());
     window.addEventListener("orientationchange", () => setTimeout(() => this.resize(), 200));
@@ -119,7 +120,7 @@ const Game = {
     const ww = window.innerWidth, wh = window.innerHeight;
     const scale = Math.min(ww / VIEW_W, wh / VIEW_H);
     const cssW = Math.floor(VIEW_W * scale), cssH = Math.floor(VIEW_H * scale);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, Gfx.q.dpr);
     this.canvas.style.width = cssW + "px";
     this.canvas.style.height = cssH + "px";
     this.canvas.width = Math.round(cssW * dpr);

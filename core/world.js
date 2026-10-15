@@ -32,7 +32,11 @@ class World {
     this.camera = new Camera();
     this.camera.setBounds(this.pw, this.ph);
     this.background = new Background(th, def.id || index + 1);
+    this.background.levelH = this.ph;
     this._bgCache = {};
+    this.prevBackground = null; this.bgFade = 0;   // section crossfade
+    this.hitStop = 0;         // frames of hit-pause left (big impacts)
+    this.deathFx = null;      // player break-apart animation
 
     this.flags = {};
     this.time = 0;            // frames since the level started
@@ -90,6 +94,19 @@ class World {
     return th;
   }
 
+  /** Theme of the section a column belongs to (tiles are painted with it). */
+  tileThemeAt(col) {
+    if (!this.sections.length) return this.theme;
+    if (!this._colThemes) {
+      this._colThemes = [];
+      const base = this.buildTheme(null);
+      this.sections.forEach((sec, i) => { this._colThemes[i] = sec.theme ? this.buildTheme(sec) : base; });
+      this._colBase = base;
+    }
+    const i = this.sections.findIndex((s) => col >= s.from && col <= s.to);
+    return i >= 0 ? this._colThemes[i] : this._colBase;
+  }
+
   /** Which section the player is in (by column); announce and re-theme on change. */
   updateSection() {
     if (!this.sections.length) return;
@@ -102,7 +119,13 @@ class World {
     if (sec.theme || first) {
       this.theme = this.buildTheme(sec);
       const key = sec.theme ? i : "base";
-      this.background = this._bgCache[key] || (this._bgCache[key] = new Background(this.theme, (this.def.id || 1) * 10 + i));
+      const next = this._bgCache[key] || (this._bgCache[key] = new Background(this.theme, (this.def.id || 1) * 10 + i));
+      next.levelH = this.ph;
+      if (next !== this.background && !first) { this.prevBackground = this.background; this.bgFade = 1; }
+      this.background = next;
+      // Keep at most three backgrounds alive (they hold big canvases).
+      const keys = Object.keys(this._bgCache);
+      if (keys.length > 3) for (const k of keys) if (this._bgCache[k] !== this.background && this._bgCache[k] !== this.prevBackground) { delete this._bgCache[k]; break; }
     }
     if (typeof Game !== "undefined" && Game.onSectionReached) Game.onSectionReached(this, i);
     if (!first) this.banner = { text: sec.name.toUpperCase(), sub: (sec.desc || "").toUpperCase(), t: 150, max: 150, color: this.theme.accent };
@@ -161,8 +184,10 @@ class World {
   }
 
   update() {
-    this.time++;
     const p = this.player;
+    // Hit-pause: a few frozen frames sell big impacts (the camera keeps shaking).
+    if (this.hitStop > 0) { this.hitStop--; this.camera.update(p); return; }
+    this.time++;
     if (this.frozen > 0) { this.frozen--; this.frozenFrames = (this.frozenFrames || 0) + 1; }
     if (this.freezeCool > 0) this.freezeCool--;
     if (this.state === "play" && !this.cutscene) this.levelTime++;
@@ -216,6 +241,9 @@ class World {
     if (this.entities.some((e) => e.dead)) this.entities = this.entities.filter((e) => !e.dead);
     this.particles.update();
     this.camera.update(p);
+    if (this.bgFade > 0 && (this.bgFade -= 1 / 50) <= 0) { this.bgFade = 0; this.prevBackground = null; }
+    if (this.deathFx) Player.updateDeath(this.deathFx);
+    if (this.flashes) this.flashes = this.flashes.filter((f) => --f.t > 0);
     // Every message stays up long enough to read: 1.5 s + 0.4 s per word.
     for (const m of [this.hint, this.banner]) {
       if (!m || m.timed) continue;
@@ -284,25 +312,44 @@ class World {
   /** Damage an entity. Returns true if the damage landed. */
   damageEntity(e, amount, source) {
     if (e.dead) return false;
-    if (e.def.onDamage) return e.def.onDamage(e, this, amount, source);
-    if (e.iframes > 0) return false;
-    e.hp -= amount;
-    e.flash = 8;
-    e.iframes = 8;
-    this.particles.burst(U.cx(e), U.cy(e), 8, e.color || "#ff3df0", 3);
-    if (e.hp <= 0) this.killEntity(e);
-    else sfx.play("hit");
-    return true;
+    let ok;
+    if (e.def.onDamage) ok = e.def.onDamage(e, this, amount, source);
+    else {
+      if (e.iframes > 0) return false;
+      e.hp -= amount;
+      e.flash = 8;
+      e.iframes = 8;
+      ok = true;
+      if (e.hp <= 0) this.killEntity(e);
+      else sfx.play("hit");
+    }
+    if (ok) {
+      const dir = U.sign(U.cx(e) - U.cx(this.player));
+      this.particles.hit(U.cx(e), U.cy(e), e.color || "#ff3df0", dir);
+      if (e.isBoss && !e.dead) { this.hitStop = Math.max(this.hitStop, 4); this.camera.shake(6); this.flash(U.cx(e), U.cy(e), 120, e.color || "#ff3df0", 10); }
+    }
+    return ok;
+  }
+
+  /** A short-lived light (explosions, big hits). */
+  flash(x, y, r, color, t = 12) {
+    (this.flashes || (this.flashes = [])).push({ x, y, r, color, t, max: t });
   }
 
   killEntity(e) {
     if (e.dead) return;
     e.dead = true;
     const col = e.color || "#ff3df0";
-    this.particles.burst(U.cx(e), U.cy(e), 26, col, 6, { glow: true });
-    this.particles.burst(U.cx(e), U.cy(e), 10, "#ffffff", 3);
-    this.particles.ring(U.cx(e), U.cy(e), col, 30);
-    this.camera.shake(5);
+    if (e.enemy || e.isBoss) {
+      const size = e.isBoss ? 70 : U.clamp(Math.max(e.w, e.h) * 0.8, 16, 40);
+      this.particles.explode(U.cx(e), U.cy(e), col, size);
+      this.flash(U.cx(e), U.cy(e), size * 4, col, e.isBoss ? 30 : 14);
+      this.hitStop = Math.max(this.hitStop, e.isBoss ? 12 : 2);
+    } else {
+      this.particles.burst(U.cx(e), U.cy(e), 20, col, 5, { glow: true });
+      this.particles.ring(U.cx(e), U.cy(e), col, 30);
+    }
+    this.camera.shake(e.isBoss ? 14 : 5);
     if (!e.isBoss) sfx.play("enemyDefeat"); // bosses play "bossDefeat" in endBoss()
     if (e.def.onDeath) e.def.onDeath(e, this);
   }
@@ -324,9 +371,12 @@ class World {
     }
     p.hp -= amount;
     p.hook = null; p.slamming = false;
+    p.hurtT = 22;
     this.hurtFlash = 14;
     this.camera.shake(8);
-    this.particles.burst(U.cx(p), U.cy(p), 16, "#ff3355", 4);
+    this.hitStop = Math.max(this.hitStop, 5);
+    this.particles.hit(U.cx(p), U.cy(p), "#ff3355", src ? U.sign(U.cx(p) - U.cx(src)) : 0);
+    this.particles.burst(U.cx(p), U.cy(p), 12, "#ff3355", 4);
     if (p.hp <= 0) { this.killPlayer(); return true; }
     sfx.play("damage");
     p.invuln = 80;
@@ -356,10 +406,12 @@ class World {
     this.state = "dying";
     this.stateTimer = 70;
     this.camera.shake(14);
+    this.hitStop = Math.max(this.hitStop, 8);
     sfx.play("death");
-    this.particles.burst(U.cx(p), U.cy(p), 50, "#00f0ff", 7, { glow: true });
-    this.particles.burst(U.cx(p), U.cy(p), 20, "#ffffff", 4);
+    this.deathFx = Player.deathPieces(p, this);
+    this.particles.explode(U.cx(p), U.cy(p), "#00f0ff", 30);
     this.particles.ring(U.cx(p), U.cy(p), "#00f0ff", 50);
+    this.flash(U.cx(p), U.cy(p), 200, "#00f0ff", 30);
   }
 
   /** Fell into a pit or got crushed: lose a heart, return to checkpoint. */
@@ -385,6 +437,8 @@ class World {
   respawn(full) {
     const p = this.player;
     p.reset(this.checkpoint.x, this.checkpoint.y, full);
+    p.spawnT = 30;
+    this.deathFx = null;
     this.state = "play";
     this.fade = 1;
     this.flags.bossFight = false;
@@ -503,26 +557,49 @@ class World {
   // ---------------------------------------------------------------- draw
   draw(ctx) {
     const cam = this.camera;
+    Gfx.lights.length = 0;
     this.background.draw(ctx, cam, this.time);
+    if (this.prevBackground && this.bgFade > 0) {
+      // Section change: the old backdrop fades out over the new one.
+      ctx.save(); ctx.globalAlpha = Gfx.ease.inOutCubic(this.bgFade);
+      this.prevBackground.draw(ctx, cam, this.time);
+      ctx.restore();
+    }
     ctx.save();
     ctx.translate(-Math.round(cam.x + cam.ox), -Math.round(cam.y + cam.oy));
     const vis = { x: cam.x - 64, y: cam.y - 64, w: VIEW_W + 128, h: VIEW_H + 128 };
+    const lights = Gfx.q.lights > 0;
     const drawLayer = (L) => {
       for (const e of this.entities) {
         if (e.layer !== L || e.dead || !e.def.draw) continue;
         if (!e.alwaysDraw && !U.overlap(e, vis)) continue;
         e.def.draw(e, ctx, this);
+        if (e.flash > 0 && e.enemy && !e.def.ownFlash) {
+          // Damage flash: a white bloom over the entity.
+          U.glow(ctx, U.cx(e), U.cy(e), Math.max(e.w, e.h) * 0.9, "#ffffff", Math.min(1, e.flash / 8) * 0.9);
+        }
         if (e.stun > 0) drawStun(ctx, e, this.time);
+        if (lights) World.entityLight(e, this);
       }
     };
     drawLayer(0);
-    drawTiles(ctx, this, cam);
+    Tiles.draw(ctx, this, cam);
     drawLayer(1);
     this.player.draw(ctx, this);
+    if (this.deathFx) Player.drawDeath(ctx, this.deathFx, this);
     drawLayer(2);
     this.particles.draw(ctx, cam);
     drawLayer(3);
+    if (lights) {
+      const p = this.player;
+      if (p.alive) Gfx.light(U.cx(p), U.cy(p), 150, p.sudo > 0 ? "#fcaf3e" : p.dashing > 0 ? "#ff3df0" : "#00c8ff", 0.9);
+      for (const f of this.flashes || []) Gfx.light(f.x, f.y, f.r, f.color, f.t / f.max * 1.4);
+      Gfx.drawLights(ctx, cam);
+    }
     ctx.restore();
+    if (lights) Gfx.drawLightMask(ctx, cam, { light: this.theme.light || this.background.spec.light || {} });
+    this.background.drawFg(ctx, cam);
+    Gfx.vignette(ctx, this.theme.vignette == null ? 0.45 : this.theme.vignette);
 
     if (this.rewindFx > 0) {
       // Rewind: VHS-style tracking bands.
@@ -557,6 +634,25 @@ World.FREEZE_TYPES = new Set(["bullet", "shockwave", "movingPlatform", "fallingP
 /** Frames needed to read a message: 1.5 s + 0.4 s per word. */
 World.readFrames = (text) => Math.round((1.5 + 0.4 * String(text).trim().split(/\s+/).filter(Boolean).length) * FPS);
 World.freezes = (e) => !e.noFreeze && ((e.enemy && !e.isBoss) || World.FREEZE_TYPES.has(e.name) || !!e.freezable);
+
+/** Lights cast by entities: def.light(e, world) → [radius, colour, strength],
+ *  or a sensible default for projectiles, pickups and enemies. */
+World.LIGHT_PICKUPS = { core: ["#00f0ff", 46], secretCore: ["#ffd23d", 60], dashRefill: ["#ff3df0", 50], powerup: [null, 56], upgrade: ["#ffd23d", 70], weapon: [null, 70], exit: ["#7dff4a", 120], checkpoint: [null, 70] };
+World.entityLight = (e, world) => {
+  if (e.def.light) {
+    const L = e.def.light(e, world);
+    if (L) Gfx.light(U.cx(e), U.cy(e), L[0], L[1], L[2] == null ? 1 : L[2]);
+    return;
+  }
+  if (e.name === "playerShot") return Gfx.light(U.cx(e), U.cy(e), 70, e.color, 0.9);
+  if (e.name === "bullet" || e.name === "enemyRocket" || e.name === "shockwave" || e.shootDown) return Gfx.light(U.cx(e), U.cy(e), 60, e.color || "#ff3355", 0.8);
+  const pk = World.LIGHT_PICKUPS[e.name];
+  if (pk) {
+    if (e.name === "checkpoint" && !e.on) return;
+    return Gfx.light(U.cx(e), U.cy(e), pk[1], pk[0] || e.color || world.theme.accent, 0.7);
+  }
+  if (e.enemy) Gfx.light(U.cx(e), U.cy(e), Math.max(e.w, e.h) * (e.isBoss ? 2.4 : 1.6), e.color || "#ff3df0", e.isBoss ? 0.8 : 0.45);
+};
 
 /** Ground Slam stun: little squares circling above the enemy. */
 function drawStun(ctx, e, time) {

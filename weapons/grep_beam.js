@@ -62,12 +62,19 @@ registerEntity("grepBeamFx", {
   update(e) { if (e.t > 10) e.dead = true; },
   draw(e, ctx) {
     const k = 1 - e.t / 10;
+    ctx.save();
     ctx.globalAlpha = k;
-    ctx.fillStyle = "rgba(138,226,52,0.35)"; ctx.fillRect(e.x, e.y - 3, e.w, 10);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = "rgba(138,226,52,0.3)"; ctx.fillRect(e.x, e.y - 5 * k - 2, e.w, 10 * k + 6);
     ctx.fillStyle = "#e9ffd4"; ctx.fillRect(e.x, e.y + 1, e.w, 2);
-    // Match markers along the beam.
+    // Crackle along the beam and match markers.
+    ctx.strokeStyle = "rgba(200,255,160,0.7)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(e.x, e.y + 2);
+    for (let x = e.x; x < e.x + e.w; x += 10) ctx.lineTo(x, e.y + 2 + U.rand(-4, 4) * k);
+    ctx.stroke();
     ctx.fillStyle = "#8ae234";
     for (let x = e.x + 6; x < e.x + e.w; x += 18) ctx.fillRect(x, e.y - 1, 6, 6);
-    ctx.globalAlpha = 1;
+    ctx.restore();
   },
+  light(e) { return null; },
 });

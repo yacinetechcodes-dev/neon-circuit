@@ -58,20 +58,30 @@ registerEntity("teleporter", {
     Save.markSeen("teleport");
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), by = e.y + e.h;
-    ctx.fillStyle = "#101a2c";
-    ctx.fillRect(e.x - 3, by - 6, e.w + 6, 6);
-    ctx.fillStyle = e.color;
-    ctx.fillRect(e.x - 3, by - 7, e.w + 6, 2);
-    U.glow(ctx, cx, by - 12, 26, e.color, 0.45 + 0.15 * Math.sin(world.time * 0.1));
+    const cx = U.cx(e), by = e.y + e.h, t = world.time;
+    // Pad: bevelled base with a lit ring and a light column.
+    ctx.beginPath(); ctx.rect(e.x - 4, by - 7, e.w + 8, 7); Look.fill(ctx, by - 7, 7, "#18243c", 0.2, 0.35);
+    ctx.fillStyle = e.color; ctx.fillRect(e.x - 4, by - 8, e.w + 8, 2);
+    ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(e.x - 4, by - 8, e.w + 8, 1);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createLinearGradient(0, by - 48, 0, by - 6);
+    g.addColorStop(0, U.rgba(e.color, 0)); g.addColorStop(1, U.rgba(e.color, 0.28));
+    ctx.fillStyle = g; ctx.fillRect(e.x - 2, by - 48, e.w + 4, 42);
+    ctx.restore();
+    U.glow(ctx, cx, by - 12, 28, e.color, 0.45 + 0.15 * Math.sin(t * 0.1));
     for (let i = 0; i < 3; i++) {
-      const k = ((world.time * 0.03 + i / 3) % 1);
+      const k = ((t * 0.03 + i / 3) % 1);
       ctx.globalAlpha = 1 - k;
       ctx.strokeStyle = e.color; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(cx, by - 6 - k * 34, 12 - k * 4, 3, 0, 0, 6.28); ctx.stroke();
     }
     ctx.globalAlpha = 1;
+    // Channel number pips on the base.
+    ctx.fillStyle = "#ffffff";
+    const n = Math.min(5, parseInt(e.link, 10) || 1);
+    for (let i = 0; i < n; i++) ctx.fillRect(cx - n * 2 + i * 4, by - 4, 2, 2);
   },
+  light(e) { return [60, e.color, 0.6]; },
 });
 
 // ------------------------------------------------------------- switch
@@ -91,18 +101,21 @@ registerEntity("switch", {
     Save.markSeen("switch");
   },
   draw(e, ctx, world) {
-    const by = e.y + e.h, on = e.on;
-    ctx.fillStyle = "#1a2236";
-    ctx.fillRect(e.x - 2, by - 5, e.w + 4, 5);
-    ctx.fillStyle = on ? e.color : U.rgba(e.color, 0.55);
-    ctx.fillRect(e.x + 3, by - (on ? 7 : 11), e.w - 6, on ? 2 : 6);
-    if (on) U.glow(ctx, U.cx(e), by - 6, 18, e.color, 0.6);
+    const by = e.y + e.h, on = e.on, t = world.time;
+    ctx.beginPath(); ctx.rect(e.x - 3, by - 6, e.w + 6, 6); Look.fill(ctx, by - 6, 6, "#1e2840", 0.2, 0.35);
+    // The plate sinks when pressed.
+    const ph = on ? 2 : 6;
+    ctx.beginPath(); ctx.rect(e.x + 3, by - 5 - ph, e.w - 6, ph); Look.fill(ctx, by - 5 - ph, ph, on ? e.color : U.mix(e.color, "#000000", 0.4), 0.35, 0.2);
+    ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(e.x + 3, by - 5 - ph, e.w - 6, 1);
+    if (on) U.glow(ctx, U.cx(e), by - 6, 20, e.color, 0.65);
+    else if (Math.floor(t / 30) % 2) { ctx.fillStyle = U.rgba(e.color, 0.8); ctx.fillRect(U.cx(e) - 1, by - 15, 2, 3); ctx.fillRect(U.cx(e) - 3, by - 14, 6, 1); }
     // Countdown bar for timed switches.
     const until = world.flags["sw_" + e.ch];
     if (on && e.time > 0 && isFinite(until)) {
-      const k = U.clamp((until - world.time) / (e.time * FPS), 0, 1);
-      ctx.fillStyle = e.color;
-      ctx.fillRect(e.x, by - 16, e.w * k, 2);
+      const k = U.clamp((until - t) / (e.time * FPS), 0, 1);
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(e.x - 2, by - 17, e.w + 4, 4);
+      ctx.fillStyle = k < 0.3 && t % 8 < 4 ? "#ffffff" : e.color;
+      ctx.fillRect(e.x - 1, by - 16, (e.w + 2) * k, 2);
     }
   },
 });
@@ -132,19 +145,18 @@ registerEntity("door", {
   },
   draw(e, ctx, world) {
     const h = e.h * (1 - e.openK);
-    ctx.fillStyle = "#1c2238";
-    ctx.fillRect(e.x - 4, e.y, 4, e.h);
-    ctx.fillRect(e.x + e.w, e.y, 4, e.h);
+    for (const px of [e.x - 5, e.x + e.w]) { ctx.beginPath(); ctx.rect(px, e.y, 5, e.h); Look.fill(ctx, e.y, e.h, "#22304e", 0.2, 0.35); }
     if (h < 2) return;
-    ctx.fillStyle = "#151c30";
-    ctx.fillRect(e.x, e.y, e.w, h);
-    // One coloured stripe per required channel.
+    ctx.beginPath(); ctx.rect(e.x, e.y, e.w, h); Look.fill(ctx, e.y, h, "#18213a", 0.1, 0.3);
+    for (let y = e.y + 10; y < e.y + h - 4; y += 12) { ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(e.x, y, e.w, 1); }
+    // One coloured stripe per required channel (lit when that channel is on).
     e.chs.forEach((c, i) => {
       const lit = channelOn(world, c);
-      ctx.fillStyle = lit ? CHANNEL_COLORS[c] : U.rgba(CHANNEL_COLORS[c] || "#ffffff", 0.45);
+      ctx.fillStyle = lit ? CHANNEL_COLORS[c] : U.rgba(CHANNEL_COLORS[c] || "#ffffff", 0.4);
       ctx.fillRect(e.x + 5 + i * 8, e.y + 4, 4, Math.max(0, h - 8));
+      if (lit) U.glow(ctx, e.x + 7 + i * 8, e.y + h / 2, 14, CHANNEL_COLORS[c], 0.35);
     });
-    ctx.fillStyle = U.rgba("#ffffff", 0.15);
+    ctx.fillStyle = U.rgba("#ffffff", 0.2);
     ctx.fillRect(e.x, e.y + h - 3, e.w, 3);
   },
 });

@@ -90,17 +90,25 @@ registerEntity("pixelSlime", {
       if (kid) { kid.vx = d * 2.2; kid.vy = -5; kid.transient = true; kid.hopT = 40; }
     }
   },
-  draw(e, ctx) {
+  draw(e, ctx, world) {
     const s = e.w / 10;                          // pixel size scales with the slime
     const flat = e.squash > 0.5 ? 1 : 0;
-    const pal = { g: e.flash ? PICO.white : e.color, d: PICO.green, w: PICO.white };
-    pixelSprite(ctx, [
-      flat ? ".........." : "...gggg...",
-      "..gggggg..",
-      ".gwggggggg",
-      "gggggggggg",
-      "dddddddddd",
-    ].slice(flat), e.x, e.y + e.h - (5 - flat) * (e.h / 5), s, pal);
+    const breathe = !flat && Math.floor((e.t + e.col * 7) / 14) % 2;
+    const pal = { g: e.flash ? PICO.white : e.color, d: PICO.green, w: PICO.white, l: U.mix(e.color, "#ffffff", 0.45), k: "#004d2a" };
+    // Pixel shadow.
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(Math.round(e.x + s), Math.round(e.y + e.h - s * 0.6), Math.round(e.w - s * 2), Math.round(s * 0.8));
+    const rows = flat
+      ? ["..gggggg..", ".glwggggggg".slice(0, 10), "gggggggggg", "dddddddddd"]
+      : breathe
+        ? ["...gggg...", "..glwggg..", ".ggwgggggg", "gggggggggg", "dkddddddkd"]
+        : ["....gg....", "..gglggg..", ".ggwwggggg", "gggggggggg", "dddkddkddd"];
+    pixelSprite(ctx, rows, e.x, e.y + e.h - rows.length * (e.h / 5), s, pal);
+    // A drip now and then.
+    if (((e.t + e.col * 13) % 90) < 20 && !flat) {
+      const k = ((e.t + e.col * 13) % 90) / 20;
+      ctx.fillStyle = pal.g; ctx.fillRect(Math.round(e.x + e.w - s * 3), Math.round(e.y + e.h + k * s * 2), Math.max(2, Math.round(s)), Math.max(2, Math.round(s)));
+    }
   },
 });
 
@@ -138,14 +146,26 @@ registerEntity("blockBat", {
     if (e.k >= 1) { e.mode = "hang"; e.x = e.home.x; e.y = e.home.y; e.cool = 60; }
   },
   draw(e, ctx, world) {
-    const flap = e.mode !== "hang" && Math.floor(world.time / 6) % 2 === 0;
-    const pal = { b: e.flash ? PICO.white : PICO.plum, p: e.color, y: PICO.yellow };
-    const rows = e.mode === "hang"
-      ? [".....bbbb....", "....bpppb....", "....bpypb....", "....bpppb....", ".....bbbb...."]
-      : flap
-        ? ["p...........p", "pp..bbbbb..pp", ".ppbpppppbpp.", "...bppyppb...", "....bbbbb...."]
-        : ["....bbbbb....", "...bpppppb...", ".ppbppyppbpp.", "pp..bbbbb..pp", "p...........p"];
-    pixelSprite(ctx, rows, e.x, e.y + 1, 2, pal);
+    const t = world.time;
+    const frame = e.mode === "hang" ? 0 : 1 + Math.floor(t / 5) % 3;
+    const pal = { b: e.flash ? PICO.white : PICO.plum, p: e.color, y: PICO.yellow, d: U.mix(e.color, "#000000", 0.35) };
+    const F = [
+      [".....bbbb....", "....bpppb....", "....bpypb....", "....bdppb....", ".....bbbb....", "......b.b...."],
+      ["p...........p", "pp..bbbbb..pp", ".ppbpppppbpp.", "...bppyppb...", "....bdddb....", ".....b.b....."],
+      ["...........", "pppbbbbbppp".padEnd(13, "."), ".ppbppyppbpp.", "...bdpppdb...", "....bbbbb....", ".....b.b....."],
+      ["....bbbbb....", "...bpppppb...", ".ppbppyppbpp.", "pp..bdddb..pp", "p....b.b....p", "............."],
+    ];
+    if (e.mode === "hang") {
+      // Gently swaying on its perch; a "!" when you're close below.
+      const sw = Math.round(Math.sin(t * 0.05 + e.col) * 1);
+      pixelSprite(ctx, F[0], e.x + sw * 2, e.y + 1, 2, pal);
+      const p = world.player;
+      if (p.alive && Math.abs(U.cx(p) - U.cx(e)) < 70 && p.y > e.y && (e.cool || 0) <= 0) {
+        ctx.fillStyle = PICO.yellow; ctx.fillRect(U.cx(e) - 2, e.y - 14, 4, 7); ctx.fillRect(U.cx(e) - 2, e.y - 5, 4, 3);
+      }
+      return;
+    }
+    pixelSprite(ctx, F[frame], e.x, e.y + 1, 2, pal);
   },
 });
 
@@ -167,13 +187,20 @@ registerEntity("bouncingSquare", {
     if (e.y > world.ph + 100 || e.y < -200) e.dead = true;
   },
   draw(e, ctx, world) {
-    const c = e.flash ? PICO.white : e.color;
+    const c = e.flash ? PICO.white : e.color, t = world.time;
+    // Motion trail (stepped squares).
+    ctx.fillStyle = U.rgba(c, 0.25);
+    ctx.fillRect(Math.round(e.x - (e.vx || 0) * 3), Math.round(e.y - (e.vy || 0) * 3), e.w, e.h);
     ctx.fillStyle = PICO.brown; ctx.fillRect(e.x, e.y, e.w, e.h);
     ctx.fillStyle = c; ctx.fillRect(e.x + 2, e.y + 2, e.w - 4, e.h - 4);
+    // Armoured top plate with rivets.
+    ctx.fillStyle = PICO.lgray; ctx.fillRect(e.x, e.y, e.w, 4);
+    ctx.fillStyle = PICO.dgray; ctx.fillRect(e.x + 3, e.y + 1, 2, 2); ctx.fillRect(e.x + e.w - 5, e.y + 1, 2, 2);
     ctx.fillStyle = PICO.yellow;
-    const k = Math.floor(world.time / 8) % 2 ? 6 : 8;
+    const k = Math.floor(t / 8) % 2 ? 6 : 8;
     ctx.fillRect(e.x + k, e.y + k, e.w - k * 2, e.h - k * 2);
-    ctx.fillStyle = PICO.white; ctx.fillRect(e.x + 4, e.y + 4, 4, 4);
+    ctx.fillStyle = PICO.white; ctx.fillRect(e.x + 4, e.y + 6, 4, 4);
+    ctx.fillStyle = PICO.dgray; ctx.fillRect(e.x + e.w - 4, e.y + 4, 2, e.h - 6); ctx.fillRect(e.x + 4, e.y + e.h - 4, e.w - 6, 2);
   },
 });
 
@@ -203,11 +230,20 @@ registerEntity("vanishBlock", {
       for (let i = 0; i < 4; i++) ctx.fillRect(e.x + i * 8 + 2, e.y + 14, 4, 4);
       return;
     }
-    if (e.mode === "blink" && Math.floor(e.timer / 4) % 2) return;
+    const blinking = e.mode === "blink";
+    if (blinking && Math.floor(e.timer / 4) % 2) {
+      // Off-frame: just the outline, so the timing reads clearly.
+      ctx.strokeStyle = U.rgba(PICO.lilac, 0.6); ctx.lineWidth = 2; ctx.strokeRect(e.x + 1, e.y + 1, 30, 30);
+      return;
+    }
     ctx.fillStyle = PICO.navy; ctx.fillRect(e.x, e.y, 32, 32);
     ctx.fillStyle = PICO.blue; ctx.fillRect(e.x, e.y, 32, 4); ctx.fillRect(e.x, e.y, 4, 32);
     ctx.fillStyle = PICO.lilac; ctx.fillRect(e.x + 28, e.y + 4, 4, 28); ctx.fillRect(e.x + 4, e.y + 28, 28, 4);
-    ctx.fillStyle = PICO.white; ctx.fillRect(e.x + 12, e.y + 12, 8, 8);
+    // Inner gem that shrinks as the block runs out of time.
+    const k = blinking ? Math.max(0.25, e.timer / Math.max(1, e.delay || 60)) : 1;
+    const g = Math.round(4 + 6 * k) * 2;
+    ctx.fillStyle = blinking ? PICO.pink : PICO.white; ctx.fillRect(e.x + 16 - g / 2, e.y + 16 - g / 2, g, g);
+    ctx.fillStyle = PICO.blue; ctx.fillRect(e.x + 16 - g / 2, e.y + 16 - g / 2, g / 2, 2);
   },
 });
 
@@ -240,15 +276,19 @@ registerEntity("pixelWall", {
     for (let y = e.y, i = 0; y < e.y + e.h; y += 16, i++) {
       ctx.fillStyle = i % 2 ? PICO.red : PICO.plum;
       ctx.fillRect(e.x, y, 32, 16);
+      ctx.fillStyle = U.mix(i % 2 ? PICO.red : PICO.plum, "#ffffff", 0.25); ctx.fillRect(e.x, y, 32, 3);
       ctx.fillStyle = PICO.black;
       ctx.fillRect(e.x + (i % 2 ? 16 : 0), y, 4, 16);
       ctx.fillRect(e.x, y + 12, 32, 4);
     }
-    // Arrow pixels show which way it's heading.
+    // Side spikes of light in its direction of travel, and an arrow.
     const dir = U.sign(this.posAt(e, world.htime + 2) - this.posAt(e, world.htime)) || 1;
     ctx.fillStyle = PICO.yellow;
     const ax = e.x + 12, ay = e.y + e.h / 2 - 6;
     for (let i = 0; i < 3; i++) ctx.fillRect(ax + (dir > 0 ? i * 4 : 8 - i * 4), ay + i * 4 - (i === 2 ? 4 : 0), 4, 4 + (i === 1 ? 4 : 0));
+    const fx = dir > 0 ? e.x + 32 : e.x - 4;
+    ctx.fillStyle = U.rgba(PICO.yellow, Math.floor(world.time / 6) % 2 ? 0.7 : 0.3);
+    for (let y = e.y + 4; y < e.y + e.h - 4; y += 12) ctx.fillRect(fx, y, 4, 4);
   },
 });
 
@@ -264,10 +304,13 @@ registerEntity("halfBlock", {
     e.y = arg === "low" ? e.row * TILE + 16 : e.row * TILE;
   },
   draw(e, ctx, world) {
-    const th = world.theme;
-    ctx.fillStyle = th.tileFill; ctx.fillRect(e.x, e.y, 32, 16);
+    const th = world.tileThemeAt ? world.tileThemeAt(e.col) : world.theme;
+    const S = Tiles.specFor(th);
+    ctx.fillStyle = S.dark; ctx.fillRect(e.x, e.y, 32, 16);
+    ctx.fillStyle = S.base; ctx.fillRect(e.x, e.y, 14, 12); ctx.fillRect(e.x + 18, e.y, 14, 12);
+    ctx.fillStyle = U.rgba(S.light, 0.35); ctx.fillRect(e.x, e.y, 14, 3); ctx.fillRect(e.x + 18, e.y, 14, 3);
     ctx.fillStyle = th.accent; ctx.fillRect(e.x, e.y + 12, 32, 4);
-    ctx.fillStyle = PICO.black; ctx.fillRect(e.x + 14, e.y, 4, 12);
+    ctx.fillStyle = U.mix(th.accent, "#ffffff", 0.4); ctx.fillRect(e.x, e.y + 15, 32, 1);
   },
 });
 
@@ -277,11 +320,15 @@ registerEntity("placedBlock", {
   layer: 1,
   props: { solid: true, transient: true, alwaysActive: true, life: 240 },
   update(e) { if (--e.life <= 0) e.dead = true; },
-  draw(e, ctx) {
+  draw(e, ctx, world) {
     if (e.life < 60 && Math.floor(e.life / 4) % 2) return;
     ctx.fillStyle = PICO.orange; ctx.fillRect(e.x, e.y, 32, 32);
     ctx.fillStyle = PICO.yellow; ctx.fillRect(e.x, e.y, 32, 4); ctx.fillRect(e.x, e.y, 4, 32);
     ctx.fillStyle = PICO.brown; ctx.fillRect(e.x + 28, e.y + 4, 4, 28); ctx.fillRect(e.x + 4, e.y + 28, 28, 4);
     ctx.fillStyle = PICO.white; ctx.fillRect(e.x + 14, e.y + 8, 4, 16); ctx.fillRect(e.x + 8, e.y + 14, 16, 4);
+    // A timer bar along the bottom shows how long it lasts.
+    const k = U.clamp(e.life / (e.maxLife || 240), 0, 1);
+    ctx.fillStyle = PICO.black; ctx.fillRect(e.x + 4, e.y + 30, 24, 2);
+    ctx.fillStyle = k < 0.25 ? PICO.red : PICO.white; ctx.fillRect(e.x + 4, e.y + 30, Math.round(24 * k / 4) * 4, 2);
   },
 });

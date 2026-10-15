@@ -83,24 +83,37 @@ registerEntity("zombieProcess", {
     walkStep(e, world, e.speed + (Math.sin(e.t * 0.08) > 0.6 ? 0.8 : 0));
   },
   draw(e, ctx, world) {
-    const x = e.x, y = e.y, col = e.flash ? "#ffffff" : e.color;
+    const x = e.x, y = e.y, col = e.flash ? "#ffffff" : e.color, t = e.t;
     if (e.defunct > 0) {
-      // Lying flat, greyed out, with a <defunct> tag; flickers before getting up.
+      // Lying flat, greyed out, with a <defunct> tag; flickers and twitches before getting up.
       const blink = e.defunct < 60 && world.time % 8 < 4;
-      ctx.fillStyle = blink ? TERM.green : "#4a4a48"; ctx.fillRect(x - 4, y + 20, 32, 10);
-      ctx.fillStyle = "#2a2a28"; ctx.fillRect(x - 2, y + 22, 8, 6);
+      const tw = e.defunct < 60 ? U.rand(-1, 1) : 0;
+      Look.shadow(ctx, U.cx(e), y + 30, 34);
+      ctx.beginPath(); ctx.rect(x - 4 + tw, y + 20, 32, 10); Look.fill(ctx, y + 20, 10, blink ? TERM.green : "#4a4a48", 0.2, 0.3);
+      ctx.fillStyle = "#2a2a28"; ctx.fillRect(x - 2 + tw, y + 22, 8, 6);
+      ctx.fillStyle = "rgba(0,0,0,0.3)"; for (let i = 0; i < 3; i++) ctx.fillRect(x + 10 + i * 5 + tw, y + 22, 3, 6);
       termLabel(ctx, "<defunct>", U.cx(e), y + 14, TERM.gray);
+      if (world.time % 30 < 15) { ctx.fillStyle = U.rgba(TERM.gray, 0.6); ctx.fillRect(U.cx(e) + 22, y + 6, 4, 4); }
       return;
     }
-    const lean = Math.sin(e.t * 0.1) * 2;
-    ctx.fillStyle = "#2a2a28"; ctx.fillRect(x + 2, y + 6, 20, 24);
+    const lean = Math.sin(t * 0.1) * 2, d = e.dir;
+    Look.shadow(ctx, U.cx(e), y + 30, 24);
+    // Shuffling legs.
+    const s = Math.sin(t * 0.15) * 2;
+    ctx.fillStyle = "#3a3a38"; ctx.fillRect(x + 5 + s, y + 24, 5, 6); ctx.fillRect(x + 14 - s, y + 24, 5, 6);
+    // A monitor-like body with a flickering prompt.
+    ctx.beginPath(); ctx.rect(x + 2 + lean, y + 6, 20, 18); Look.fill(ctx, y + 6, 18, "#2e2e2c", 0.12, 0.3);
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.strokeRect(x + 2 + lean, y + 6, 20, 18);
-    // Arms out in front (blocks only).
-    ctx.fillStyle = col; ctx.fillRect(e.dir > 0 ? x + 18 + lean : x - 8 + lean, y + 12, 14, 4);
-    ctx.fillStyle = "#4a4a48"; ctx.fillRect(x + 5, y + 24, 5, 6); ctx.fillRect(x + 14, y + 24, 5, 6);
-    // PID tag + one dim status light.
-    ctx.fillStyle = TERM.red; ctx.fillRect(U.cx(e) + e.dir * 5 - 2 + lean, y + 11, 4, 3);
-    termLabel(ctx, "Z", U.cx(e) + lean, y + 4, TERM.gray, 8);
+    ctx.fillStyle = "#0e0e0e"; ctx.fillRect(x + 5 + lean, y + 9, 14, 9);
+    ctx.fillStyle = U.rgba(TERM.green, 0.8);
+    ctx.fillRect(x + 6 + lean, y + 10, 6, 1); if (Math.floor(world.time / 20) % 2) ctx.fillRect(x + 13 + lean, y + 10, 2, 2);
+    ctx.fillRect(x + 6 + lean, y + 13, 9 - (Math.floor(world.time / 7) % 4), 1);
+    // Arms out in front, swaying.
+    const ay = y + 12 + Math.sin(t * 0.12) * 1.5;
+    ctx.fillStyle = col; ctx.fillRect(d > 0 ? x + 18 + lean : x - 8 + lean, ay, 14, 4);
+    ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.fillRect(d > 0 ? x + 18 + lean : x - 8 + lean, ay, 14, 1);
+    Look.core(ctx, U.cx(e) + d * 5 + lean, y + 21, 1.6, TERM.red, t);
+    termLabel(ctx, "Z", U.cx(e) + lean, y + 3 - Math.abs(Math.sin(t * 0.05)) * 2, TERM.gray, 8);
   },
 });
 
@@ -134,14 +147,22 @@ registerEntity("memoryLeak", {
     walkStep(e, world, 0.4 + e.size / 80);
   },
   draw(e, ctx, world) {
-    const x = e.x, y = e.y, s = e.w;
-    const wob = Math.sin(world.time * 0.15) * 2;
-    ctx.fillStyle = e.flash ? "#ffffff" : U.rgba(TERM.purple, 0.85);
-    U.roundRect(ctx, x - wob / 2, y + wob, s + wob, s - wob, Math.max(4, s / 3)); ctx.fill();
-    // Leaked "memory blocks" inside.
+    const x = e.x, y = e.y, s = e.w, t = world.time;
+    const wob = Math.sin(t * 0.15) * 2;
+    Look.shadow(ctx, x + s / 2, y + s, s + 6);
+    // Gooey body with a gradient and a wet highlight; drips off the bottom.
+    U.roundRect(ctx, x - wob / 2, y + wob, s + wob, s - wob, Math.max(4, s / 3));
+    if (e.flash) { ctx.fillStyle = "#ffffff"; ctx.fill(); }
+    else Look.fill(ctx, y + wob, s - wob, "#8a5a86", 0.3, 0.35);
+    ctx.strokeStyle = U.rgba(TERM.purple, 0.9); ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.35)"; U.roundRect(ctx, x + s * 0.18, y + wob + s * 0.12, s * 0.3, s * 0.12, 3); ctx.fill();
+    // Leaked "memory blocks" inside, cycling.
     ctx.fillStyle = U.rgba(TERM.white, 0.55);
     const n = Math.floor(s / 10);
-    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if ((i + j + (world.time >> 4)) % 3 === 0) ctx.fillRect(x + 4 + i * 9, y + 4 + j * 9, 5, 5);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if ((i + j + (t >> 4)) % 3 === 0) ctx.fillRect(x + 4 + i * 9, y + 4 + j * 9, 5, 5);
+    const dk = ((t + e.col * 9) % 60) / 60;
+    ctx.fillStyle = U.rgba(TERM.purple, 1 - dk); ctx.fillRect(x + s * 0.7, y + s + dk * 8, 3, 4);
+    U.glow(ctx, x + s / 2, y + s / 2, s, TERM.purple, 0.25);
     if (s >= 32) termLabel(ctx, `${Math.round(s * 12)}MB`, U.cx(e), y - 3, TERM.purple);
   },
 });
@@ -170,9 +191,12 @@ registerEntity("forkChild", {
     }
     if (e.y > world.ph + 100) e.dead = true;
   },
-  draw(e, ctx) {
-    ctx.fillStyle = e.flash ? "#ffffff" : e.color; ctx.fillRect(e.x, e.y, 12, 12);
+  draw(e, ctx, world) {
+    const col = e.flash ? "#ffffff" : e.color;
+    ctx.beginPath(); ctx.rect(e.x, e.y, 12, 12); Look.fill(ctx, e.y, 12, col, 0.3, 0.3);
     ctx.fillStyle = TERM.bg; ctx.fillRect(e.x + 3, e.y + 3, 6, 2); ctx.fillRect(e.x + 3, e.y + 7, 6, 2);
+    ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(e.x, e.y, 12, 1);
+    U.glow(ctx, e.x + 6, e.y + 6, 10, col, 0.4);
   },
 });
 
@@ -202,14 +226,20 @@ registerEntity("forkBomb", {
   },
   onRespawn(e, world) { for (const o of world.entities) if (o.parent === e) o.dead = true; },
   draw(e, ctx, world) {
-    const x = e.x, y = e.y, col = e.flash ? "#ffffff" : e.color;
-    // A crate-like spawner with a ":(){ :|:& };:"-style rune strip (plain bars).
-    ctx.fillStyle = TERM.panel; ctx.fillRect(x, y, 30, 30);
+    const x = e.x, y = e.y, col = e.flash ? "#ffffff" : e.color, t = world.time;
+    const arming = e.timer < 20;
+    Look.shadow(ctx, x + 15, y + 30, 32);
+    ctx.beginPath(); ctx.rect(x, y, 30, 30); Look.fill(ctx, y, 30, TERM.panel, 0.15, 0.35);
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, 28, 28);
-    const k = e.timer < 20 && world.time % 6 < 3;
-    ctx.fillStyle = k ? TERM.white : col;
-    for (let i = 0; i < 4; i++) ctx.fillRect(x + 5 + i * 6, y + 8 + (i % 2) * 6, 4, 4);
-    ctx.fillRect(x + 5, y + 22, 20, 3);
+    for (const [bx, by] of [[4, 4], [26, 4], [4, 26], [26, 26]]) Look.bolt(ctx, x + bx, y + by, 1.3);
+    // Rune strip of plain bars, pulsing in sequence.
+    for (let i = 0; i < 4; i++) {
+      const on = Math.floor(t / 6) % 4 === i || (arming && t % 6 < 3);
+      ctx.fillStyle = on ? TERM.white : col;
+      ctx.fillRect(x + 5 + i * 6, y + 8 + (i % 2) * 6, 4, 4);
+    }
+    ctx.fillStyle = col; ctx.fillRect(x + 5, y + 22, 20 * (arming ? 1 - e.timer / 20 : 1), 3);
+    if (arming) { Look.telegraph(ctx, x + 15, y + 15, 14, col, 1 - e.timer / 20); }
   },
 });
 
@@ -242,22 +272,36 @@ registerEntity("kernelPanicOrb", {
     }
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e);
-    const warn = e.ringR === 0 && e.timer < 36 && Math.floor(e.timer / 4) % 2;
-    U.glow(ctx, cx, cy, 30, e.color, 0.5);
-    ctx.fillStyle = e.flash || warn ? "#ffffff" : e.color;
-    ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.28); ctx.fill();
-    ctx.fillStyle = TERM.bg; ctx.fillRect(cx - 5, cy - 1, 10, 3);
+    const cx = U.cx(e), cy = U.cy(e), t = world.time;
+    const charging = e.ringR === 0 && e.timer < 36;
+    const warn = charging && Math.floor(e.timer / 4) % 2;
+    U.glow(ctx, cx, cy, 32, e.color, 0.55);
+    // Core sphere with bands.
+    ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.28);
+    if (e.flash || warn) { ctx.fillStyle = "#ffffff"; ctx.fill(); } else Look.fill(ctx, cy - 10, 20, e.color, 0.4, 0.4);
+    ctx.fillStyle = TERM.bg; ctx.fillRect(cx - 6, cy - 1.5, 12, 3);
+    ctx.fillStyle = Math.floor(t / 10) % 2 ? TERM.white : e.color; ctx.fillRect(cx - 4 + ((t >> 2) % 8), cy - 1, 2, 2);
+    // Orbiting debris.
+    for (let i = 0; i < 3; i++) { const a = t * 0.07 + i * 2.09 + e.phase; ctx.fillStyle = U.rgba(e.color, 0.8); ctx.fillRect(cx + Math.cos(a) * 18 - 1.5, cy + Math.sin(a) * 18 - 1.5, 3, 3); }
+    if (charging) Look.telegraph(ctx, cx, cy, 16, e.color, 1 - e.timer / 36);
     // Shield ring (dashed, rotating) unless it's dumping.
     if (e.vuln <= 0) {
       const sudo = world.player.sudo > 0;
       ctx.strokeStyle = sudo ? U.rgba(TERM.amber, 0.4) : TERM.white; ctx.lineWidth = 2;
-      ctx.setLineDash([5, 4]); ctx.lineDashOffset = -world.time * 0.5;
+      ctx.setLineDash([5, 4]); ctx.lineDashOffset = -t * 0.5;
       ctx.beginPath(); ctx.arc(cx, cy, 14, 0, 6.28); ctx.stroke(); ctx.setLineDash([]);
+    } else {
+      ctx.strokeStyle = U.rgba(TERM.green, 0.6); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cx, cy, 14, t * 0.2, t * 0.2 + 1); ctx.stroke();
     }
     if (e.ringR > 0) {
-      ctx.strokeStyle = U.rgba(e.color, 1 - e.ringR / e.ring); ctx.lineWidth = 6;
+      const a = 1 - e.ringR / e.ring;
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = U.rgba(e.color, a * 0.35); ctx.lineWidth = 16;
       ctx.beginPath(); ctx.arc(cx, cy, e.ringR, 0, 6.28); ctx.stroke();
+      ctx.strokeStyle = U.rgba("#ffffff", a); ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(cx, cy, e.ringR, 0, 6.28); ctx.stroke();
+      ctx.restore();
     }
   },
 });
@@ -276,21 +320,24 @@ registerEntity("permDoor", {
     e.solid = !open;
   },
   draw(e, ctx, world) {
-    const open = !e.solid;
+    const open = !e.solid, t = world.time;
     ctx.globalAlpha = open ? 0.25 : 1;
-    ctx.fillStyle = "#2a1a1a"; ctx.fillRect(e.x + 2, e.y, 28, 32);
+    ctx.beginPath(); ctx.rect(e.x + 2, e.y, 28, 32); Look.fill(ctx, e.y, 32, "#2e1c1c", 0.1, 0.3);
     ctx.strokeStyle = open ? TERM.amber : TERM.red; ctx.lineWidth = 2; ctx.strokeRect(e.x + 3, e.y + 1, 26, 30);
     // Padlock (plain shapes) on cells whose top is open, bars elsewhere.
     if (e.row === 0 || !Physics.solidAt(world, e.col, e.row - 1) && !world.entities.some((o) => o.name === "permDoor" && o.col === e.col && o.row === e.row - 1)) {
       ctx.fillStyle = open ? TERM.amber : TERM.red;
       ctx.fillRect(e.x + 10, e.y + 14, 12, 10);
       ctx.strokeStyle = ctx.fillStyle; ctx.beginPath(); ctx.arc(e.x + 16, e.y + 14, 4, Math.PI, 0); ctx.stroke();
+      ctx.fillStyle = "#1a0a0a"; ctx.fillRect(e.x + 15, e.y + 17, 2, 4);
     } else {
-      ctx.fillStyle = U.rgba(TERM.red, 0.6);
-      for (let i = 0; i < 3; i++) ctx.fillRect(e.x + 8 + i * 7, e.y + 4, 3, 24);
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = U.rgba(TERM.red, 0.45 + 0.25 * Math.sin(t * 0.1 + i + e.row));
+        ctx.fillRect(e.x + 8 + i * 7, e.y + 4, 3, 24);
+      }
     }
     ctx.globalAlpha = 1;
-    if (!open) termLabel(ctx, "r--", e.x + 16, e.y + 31, U.rgba(TERM.red, 0.8), 8);
+    if (!open) { termLabel(ctx, "r--", e.x + 16, e.y + 31, U.rgba(TERM.red, 0.8), 8); U.glow(ctx, e.x + 16, e.y + 16, 18, TERM.red, 0.2); }
   },
 });
 
@@ -335,19 +382,23 @@ registerEntity("loopPlatform", {
     Physics.moveSolid(world, e, q.x - e.x, q.y - e.y);
   },
   draw(e, ctx, world) {
-    // Faint loop path.
-    ctx.strokeStyle = U.rgba(TERM.green, 0.16); ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
+    const t = world.time;
+    // Faint loop path with a moving dash.
+    ctx.strokeStyle = U.rgba(TERM.green, 0.18); ctx.lineWidth = 1; ctx.setLineDash([4, 6]); ctx.lineDashOffset = -t * 0.4;
     if (e.mode === "wrap") { ctx.beginPath(); ctx.moveTo(e.home.x, e.home.y + 8); ctx.lineTo(e.home.x + e.lw * TILE + e.w, e.home.y + 8); ctx.stroke(); }
     else ctx.strokeRect(e.home.x + e.w / 2, e.home.y + 8, e.lw * TILE, e.lh * TILE);
     ctx.setLineDash([]);
-    ctx.fillStyle = TERM.panel; ctx.fillRect(e.x, e.y, e.w, e.h);
+    ctx.beginPath(); ctx.rect(e.x, e.y, e.w, e.h); Look.fill(ctx, e.y, e.h, TERM.panel, 0.15, 0.35);
     ctx.fillStyle = TERM.green; ctx.fillRect(e.x, e.y, e.w, 3);
+    ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fillRect(e.x, e.y, e.w, 1);
     // "while(true)" arrows.
     ctx.fillStyle = U.rgba(TERM.green, 0.7);
-    const k = (world.time >> 2) % 12;
+    const k = (t >> 2) % 12;
     for (let x = e.x + 4 + k; x < e.x + e.w - 8; x += 12) { ctx.fillRect(x, e.y + 7, 6, 2); ctx.fillRect(x + 4, e.y + 6, 2, 4); }
+    U.glow(ctx, e.x + e.w / 2, e.y + 2, e.w * 0.4, TERM.green, 0.2);
+    // Warn before a wrap-around snap.
     const near = e.mode === "wrap" && (this.posAt(e, world.htime + 40).x < e.x);
-    if (near && world.time % 6 < 3) { ctx.strokeStyle = TERM.red; ctx.lineWidth = 2; ctx.strokeRect(e.x, e.y, e.w, e.h); }
+    if (near && t % 6 < 3) { ctx.strokeStyle = TERM.red; ctx.lineWidth = 2; ctx.strokeRect(e.x, e.y, e.w, e.h); U.glow(ctx, e.x + e.w / 2, e.y + 4, 24, TERM.red, 0.4); }
   },
 });
 
@@ -359,10 +410,13 @@ registerEntity("packageBox", {
   props: { solid: true },
   draw(e, ctx) {
     const x = e.x, y = e.y;
-    ctx.fillStyle = "#8f6a3e"; ctx.fillRect(x + 1, y + 1, 30, 31);
+    ctx.beginPath(); ctx.rect(x + 1, y + 1, 30, 31); Look.fill(ctx, y + 1, 31, "#8f6a3e", 0.2, 0.3);
     ctx.fillStyle = "#a8804e"; ctx.fillRect(x + 1, y + 1, 30, 6);
+    ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(x + 1, y + 7, 30, 1);
     ctx.fillStyle = "#d9c9a3"; ctx.fillRect(x + 13, y + 1, 6, 31);  // tape
+    ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.fillRect(x + 13, y + 1, 1, 31);
     ctx.fillStyle = "#3a2a1a"; ctx.fillRect(x + 4, y + 18, 7, 2); ctx.fillRect(x + 4, y + 22, 5, 2);
+    ctx.fillStyle = "rgba(60,40,20,0.4)"; ctx.fillRect(x + 22, y + 12, 6, 6);
     ctx.strokeStyle = "#5a4024"; ctx.lineWidth = 1; ctx.strokeRect(x + 1.5, y + 1.5, 29, 30);
   },
 });

@@ -57,16 +57,20 @@ registerEntity("virusShot", {
     }
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e);
-    U.glow(ctx, cx, cy, 18, VIRUS_GREEN, 0.8);
-    ctx.fillStyle = "#e6ffd0";
-    ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, 6.28); ctx.fill();
+    const cx = U.cx(e), cy = U.cy(e), t = world.time;
+    Look.comet(ctx, cx, cy, e.vx, e.vy, 4.5, VIRUS_GREEN, "#e6ffd0");
+    // Wobbling membrane and spikes.
     ctx.strokeStyle = VIRUS_GREEN; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i <= 12; i++) { const a = (i / 12) * 6.28, r = 6 + Math.sin(t * 0.4 + i * 1.7) * 1.2; i ? ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r) : ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+    ctx.stroke();
     for (let i = 0; i < 5; i++) {
-      const a = world.time * 0.2 + (i / 5) * 6.28;
-      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * 5, cy + Math.sin(a) * 5); ctx.lineTo(cx + Math.cos(a) * 8, cy + Math.sin(a) * 8); ctx.stroke();
+      const a = t * 0.2 + (i / 5) * 6.28;
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * 6, cy + Math.sin(a) * 6); ctx.lineTo(cx + Math.cos(a) * 9.5, cy + Math.sin(a) * 9.5); ctx.stroke();
+      ctx.fillStyle = "#e6ffd0"; ctx.fillRect(cx + Math.cos(a) * 9.5 - 1, cy + Math.sin(a) * 9.5 - 1, 2, 2);
     }
   },
+  light(e) { return [50, VIRUS_GREEN, 0.8]; },
 });
 
 // Rides an infected enemy for 5 s, pulsing 1 damage into enemies within ~3 tiles.

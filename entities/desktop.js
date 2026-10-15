@@ -26,8 +26,16 @@ const DESK = {
 /** A generic window frame: title bar, body, three plain squares. */
 function drawWindowFrame(ctx, x, y, w, h, o = {}) {
   const bar = o.bar || DESK.blue, bh = Math.min(o.barH || 8, h);
-  ctx.fillStyle = o.body || DESK.white; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = bar; ctx.fillRect(x, y, w, bh);
+  // Body with a soft top-to-bottom sheen.
+  const body = o.body || DESK.white;
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, body); g.addColorStop(1, U.mix(body, "#9fb2c8", 0.25));
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  // Title bar: gradient and a highlight line.
+  const tg = ctx.createLinearGradient(0, y, 0, y + bh);
+  tg.addColorStop(0, U.mix(bar, "#ffffff", 0.25)); tg.addColorStop(1, bar);
+  ctx.fillStyle = tg; ctx.fillRect(x, y, w, bh);
+  ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.fillRect(x, y, w, 1);
   if (w >= 24 && bh >= 6) {
     ctx.fillStyle = U.rgba("#ffffff", 0.85);
     for (let i = 0; i < 3; i++) ctx.fillRect(x + w - 6 - i * 6, y + 2, 4, bh - 4);
@@ -75,10 +83,21 @@ registerEntity("popupWindow", {
     e.vy = U.approach(e.vy, U.clamp((ty - e.y) * 0.05, -e.speed, e.speed), 0.07);
     Physics.move(world, e, e.vx, e.vy, { solids: false, oneway: false });
   },
-  draw(e, ctx) {
-    drawWindowFrame(ctx, Math.round(e.x), Math.round(e.y), e.w, e.h, { bar: e.flash ? "#ffffff" : e.color });
+  draw(e, ctx, world) {
+    const x = Math.round(e.x), y = Math.round(e.y), t = e.t;
+    const bob = Math.sin(t * 0.12) * 1.5;
+    // Drop shadow on whatever is behind.
+    ctx.fillStyle = "rgba(0,20,60,0.25)"; ctx.fillRect(x + 4, y + 5 + bob, e.w, e.h);
+    drawWindowFrame(ctx, x, y + bob, e.w, e.h, { bar: e.flash ? "#ffffff" : e.color });
+    // "Typing" content lines that keep filling up.
+    const k = (t * 0.6) % (e.w - 10);
     ctx.fillStyle = DESK.gray;
-    ctx.fillRect(e.x + 5, e.y + 12, e.w - 10, 3); ctx.fillRect(e.x + 5, e.y + 18, e.w - 18, 3);
+    ctx.fillRect(x + 5, y + 12 + bob, e.w - 10, 3);
+    ctx.fillRect(x + 5, y + 18 + bob, Math.max(4, k), 3);
+    ctx.fillStyle = DESK.ink; if (Math.floor(t / 15) % 2) ctx.fillRect(x + 5 + Math.max(4, k), y + 17 + bob, 1, 5);
+    // A big bouncing "OK" button (plain shape).
+    if (e.h > 26) { ctx.fillStyle = DESK.blue; ctx.fillRect(x + e.w / 2 - 6, y + e.h - 7 + bob, 12, 4); }
+    U.glow(ctx, x + e.w - 4, y + 4 + bob, 8, "#ff5a5a", 0.4 + 0.3 * Math.sin(t * 0.3));
   },
 });
 
@@ -104,16 +123,30 @@ registerEntity("errorBox", {
     }
   },
   draw(e, ctx, world) {
+    const t = world.time;
     const warn = e.ringR === 0 && e.timer < 30 && Math.floor(e.timer / 4) % 2;
-    drawWindowFrame(ctx, Math.round(e.x), Math.round(e.y), e.w, e.h, { bar: e.flash || warn ? "#ffffff" : e.color });
+    const x = Math.round(e.x), y = Math.round(e.y);
+    // Little stand legs that step as it walks.
+    const s = Math.sin(e.t * 0.25) * 2;
+    ctx.strokeStyle = "#5b6b82"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x + 6, y + e.h - 2); ctx.lineTo(x + 6 + s, y + e.h + 2); ctx.moveTo(x + e.w - 6, y + e.h - 2); ctx.lineTo(x + e.w - 6 - s, y + e.h + 2); ctx.stroke();
+    Look.shadow(ctx, U.cx(e), y + e.h + 2, e.w);
+    drawWindowFrame(ctx, x, y, e.w, e.h, { bar: e.flash || warn ? "#ffffff" : e.color });
     // Warning triangle (generic).
-    const cx = U.cx(e), cy = e.y + 18;
+    const cx = U.cx(e), cy = y + 18;
     ctx.fillStyle = DESK.amber;
     ctx.beginPath(); ctx.moveTo(cx, cy - 7); ctx.lineTo(cx + 7, cy + 6); ctx.lineTo(cx - 7, cy + 6); ctx.closePath(); ctx.fill();
     ctx.fillStyle = DESK.ink; ctx.fillRect(cx - 1, cy - 3, 2, 5); ctx.fillRect(cx - 1, cy + 3, 2, 2);
+    // Telegraph: a closing ring before the "ding", then the ring itself.
+    if (e.ringR === 0 && e.timer < 30) Look.telegraph(ctx, cx, U.cy(e), e.w * 0.7, e.color, 1 - e.timer / 30);
     if (e.ringR > 0) {
-      ctx.strokeStyle = U.rgba(e.color, 1 - e.ringR / e.ring); ctx.lineWidth = 6;
+      const a = 1 - e.ringR / e.ring;
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = U.rgba(e.color, a * 0.35); ctx.lineWidth = 14;
       ctx.beginPath(); ctx.arc(cx, U.cy(e), e.ringR, 0, 6.28); ctx.stroke();
+      ctx.strokeStyle = U.rgba("#ffffff", a); ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(cx, U.cy(e), e.ringR, 0, 6.28); ctx.stroke();
+      ctx.restore();
     }
   },
 });
@@ -132,16 +165,23 @@ registerEntity("spinLoader", {
     if (e.y > world.ph + 100) e.dead = true;
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e);
-    const a0 = (world.time * 0.18) * e.dir;
-    for (let i = 0; i < 8; i++) {
-      const a = a0 + (i / 8) * Math.PI * 2;
-      ctx.globalAlpha = 0.25 + (i / 8) * 0.75;
-      ctx.fillStyle = e.flash ? "#ffffff" : e.color;
-      ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 10, cy + Math.sin(a) * 10, 3.2, 0, 6.28); ctx.fill();
+    const cx = U.cx(e), cy = U.cy(e), t = world.time;
+    const col = e.flash ? "#ffffff" : e.color;
+    Look.shadow(ctx, cx, e.y + e.h, e.w * 0.8);
+    U.glow(ctx, cx, cy, 22, col, 0.45);
+    // Track ring and a dark hub.
+    ctx.strokeStyle = U.rgba(col, 0.2); ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.28); ctx.stroke();
+    ctx.fillStyle = "#0b2a5a"; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 6.28); ctx.fill();
+    // Spinning dots with a fading tail (blur when rolling fast).
+    const a0 = (t * 0.18) * e.dir;
+    for (let i = 0; i < 10; i++) {
+      const a = a0 - e.dir * (i / 10) * Math.PI * 1.6;
+      ctx.globalAlpha = 1 - i / 10;
+      ctx.fillStyle = i === 0 ? "#ffffff" : col;
+      ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 10, cy + Math.sin(a) * 10, 3.4 - i * 0.18, 0, 6.28); ctx.fill();
     }
     ctx.globalAlpha = 1;
-    U.glow(ctx, cx, cy, 18, e.color, 0.35);
   },
 });
 
@@ -167,14 +207,18 @@ registerEntity("closingWindow", {
     e.solid = solidNow;
   },
   draw(e, ctx, world) {
+    const t = world.time;
     if (!e.solid) {
-      if (e.state === "opening" && world.time % 6 < 3) { ctx.strokeStyle = DESK.sky; ctx.lineWidth = 2; ctx.strokeRect(e.x + 1, e.y + 1, e.w - 2, e.h - 2); }
+      if (e.state === "opening" && t % 6 < 3) { ctx.strokeStyle = DESK.sky; ctx.lineWidth = 2; ctx.strokeRect(e.x + 1, e.y + 1, e.w - 2, e.h - 2); }
       // Minimized to a little taskbar tab.
       ctx.fillStyle = U.rgba(DESK.sky, 0.35); ctx.fillRect(U.cx(e) - 8, e.y + e.h - 3, 16, 3);
       return;
     }
-    const shrink = e.state === "closing" ? (Math.floor(world.time / 3) % 2 ? 4 : 0) : 0;
-    drawWindowFrame(ctx, e.x + shrink, e.y, e.w - shrink * 2, e.h, { bar: e.state === "closing" ? DESK.red : DESK.blue, barH: 7 });
+    const closing = e.state === "closing";
+    const shrink = closing ? (Math.floor(t / 3) % 2 ? 4 : 0) : 0;
+    ctx.fillStyle = "rgba(0,20,60,0.22)"; ctx.fillRect(e.x + 4, e.y + 5, e.w, e.h);
+    drawWindowFrame(ctx, e.x + shrink, e.y, e.w - shrink * 2, e.h, { bar: closing ? DESK.red : DESK.blue, barH: 7 });
+    if (closing) U.glow(ctx, e.x + e.w - 6, e.y + 4, 14, DESK.red, 0.6);
   },
 });
 
@@ -219,18 +263,27 @@ registerEntity("bluePanel", {
     if (was === "fall" && e.mode === "hold" && world.onScreen(e)) { world.camera.shake(7); sfx.play("slam"); world.particles.dust(U.cx(e), e.y + e.h, DESK.sky, 10); }
   },
   draw(e, ctx, world) {
-    const sx = e.mode === "warn" ? U.rand(-2, 2) : 0;
+    const t = world.time, warn = e.mode === "warn";
+    const sx = warn ? U.rand(-2, 2) : 0;
     const x = e.x + sx, y = e.y;
-    ctx.fillStyle = "#2a3a52"; ctx.fillRect(x + 44, e.home.y - 4, 8, y - e.home.y + 4); // cable
-    ctx.fillStyle = DESK.blue; ctx.fillRect(x, y, e.w, e.h);
+    // Cable and pulley.
+    ctx.fillStyle = "#2a3a52"; ctx.fillRect(x + e.w / 2 - 3, e.home.y - 4, 6, y - e.home.y + 4);
+    ctx.fillStyle = "#3a4c6a"; ctx.beginPath(); ctx.arc(x + e.w / 2, e.home.y, 6, 0, 6.28); ctx.fill();
+    // Panel: gradient blue, bezel, a "please wait" progress bar and dots.
+    ctx.beginPath(); ctx.rect(x, y, e.w, e.h);
+    Look.fill(ctx, y, e.h, DESK.blue, 0.2, 0.35);
+    ctx.strokeStyle = DESK.deep; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, e.w - 2, e.h - 2);
     ctx.fillStyle = DESK.deep; ctx.fillRect(x, y + e.h - 6, e.w, 6);
-    // Progress bar + dots (generic "please wait" panel).
     ctx.fillStyle = U.rgba("#ffffff", 0.35); ctx.fillRect(x + 12, y + 30, e.w - 24, 6);
-    const k = ((world.time * 0.01) % 1);
+    const k = ((t * 0.01) % 1);
     ctx.fillStyle = "#ffffff"; ctx.fillRect(x + 12, y + 30, (e.w - 24) * k, 6);
-    for (let i = 0; i < 3; i++) { ctx.globalAlpha = (Math.floor(world.time / 10) % 3) === i ? 1 : 0.35; ctx.fillRect(x + 36 + i * 9, y + 14, 5, 5); }
+    for (let i = 0; i < 3; i++) { ctx.globalAlpha = (Math.floor(t / 10) % 3) === i ? 1 : 0.35; ctx.fillRect(x + e.w / 2 - 13 + i * 9, y + 14, 5, 5); }
     ctx.globalAlpha = 1;
-    if (e.mode === "warn") U.glow(ctx, x + e.w / 2, y + e.h, 40, DESK.red, 0.6);
+    if (warn) {
+      U.glow(ctx, x + e.w / 2, y + e.h, 44, DESK.red, 0.65);
+      ctx.fillStyle = U.rgba(DESK.red, t % 8 < 4 ? 0.45 : 0.2); ctx.fillRect(x + 2, y + e.h + 2, e.w - 4, 3);
+      Look.warn(ctx, x + e.w / 2, y - 10, DESK.red, t);
+    }
   },
 });
 
@@ -250,13 +303,18 @@ registerEntity("dragTrap", {
     Physics.move(world, p, e.dir * e.force, 0);
   },
   draw(e, ctx, world) {
+    const t = world.time;
     ctx.fillStyle = U.rgba(DESK.sky, 0.1); ctx.fillRect(e.x, e.y, 32, 32);
-    ctx.strokeStyle = U.rgba(DESK.sky, 0.5); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = U.rgba(DESK.sky, 0.5); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.lineDashOffset = -t * 0.5 * e.dir;
     ctx.strokeRect(e.x + 0.5, e.y + 0.5, 31, 31); ctx.setLineDash([]);
-    // Drifting file glyph.
-    const k = ((world.time * 1.2 * e.dir + e.col * 13) % 32 + 32) % 32;
-    ctx.fillStyle = U.rgba(DESK.white, 0.55);
+    // Drifting file glyphs and direction chevrons.
+    const k = ((t * 1.2 * e.dir + e.col * 13) % 32 + 32) % 32;
+    ctx.fillStyle = U.rgba(DESK.white, 0.6);
     ctx.fillRect(e.x + k - 4, e.y + 10 + (e.row % 2) * 6, 8, 10);
+    ctx.fillStyle = U.rgba(DESK.blue, 0.7); ctx.fillRect(e.x + k - 4, e.y + 10 + (e.row % 2) * 6, 8, 2);
+    ctx.strokeStyle = U.rgba(DESK.sky, 0.45); ctx.lineWidth = 2;
+    const c = ((t * 0.8 * e.dir) % 16 + 16) % 16;
+    ctx.beginPath(); ctx.moveTo(e.x + c + 2, e.y + 24); ctx.lineTo(e.x + c + 2 + e.dir * 4, e.y + 27); ctx.lineTo(e.x + c + 2, e.y + 30); ctx.stroke();
   },
 });
 
@@ -295,11 +353,17 @@ registerEntity("smashBlock", {
     return out;
   },
   draw(e, ctx) {
-    // A stack of folders/files (generic rectangles).
-    ctx.fillStyle = "#b07a1a"; ctx.fillRect(e.x, e.y + 4, 32, 28);
-    ctx.fillStyle = DESK.amber; ctx.fillRect(e.x, e.y + 8, 32, 24); ctx.fillRect(e.x, e.y + 4, 13, 5);
-    ctx.fillStyle = DESK.white; ctx.fillRect(e.x + 6, e.y + 12, 20, 3); ctx.fillRect(e.x + 6, e.y + 18, 14, 3);
-    ctx.strokeStyle = "#7a520f"; ctx.lineWidth = 1; ctx.strokeRect(e.x + 0.5, e.y + 4.5, 31, 27);
+    // A stack of folders and papers (generic rectangles), slightly askew.
+    const x = e.x, y = e.y;
+    ctx.fillStyle = "#8a5a12"; ctx.fillRect(x, y + 4, 32, 28);
+    ctx.fillStyle = DESK.white; ctx.fillRect(x + 3, y + 6, 26, 6); ctx.fillRect(x + 5, y + 2, 22, 5);
+    ctx.fillStyle = "#c9d3df"; for (let i = 0; i < 3; i++) ctx.fillRect(x + 7, y + 3 + i * 2, 16, 1);
+    ctx.beginPath(); ctx.rect(x, y + 10, 32, 22);
+    Look.fill(ctx, y + 10, 22, DESK.amber, 0.25, 0.3);
+    ctx.fillStyle = DESK.amber; ctx.fillRect(x, y + 7, 13, 4);
+    ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(x, y + 20, 32, 1); ctx.fillRect(x, y + 26, 32, 1);
+    ctx.fillStyle = DESK.white; ctx.fillRect(x + 6, y + 14, 20, 2); ctx.fillRect(x + 6, y + 22, 14, 2);
+    ctx.strokeStyle = "#7a520f"; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 4.5, 31, 27);
   },
 });
 
@@ -312,9 +376,12 @@ registerEntity("slotBlock", {
   props: { solid: true },
   init(e) { e.x = e.col * TILE; e.y = e.row * TILE; },
   draw(e, ctx) {
-    ctx.fillStyle = DESK.gray; ctx.fillRect(e.x, e.y, 32, 21);
+    ctx.beginPath(); ctx.rect(e.x, e.y, 32, 21);
+    Look.fill(ctx, e.y, 21, DESK.gray, 0.3, 0.2);
     ctx.fillStyle = DESK.blue; ctx.fillRect(e.x, e.y + 17, 32, 4);
+    ctx.fillStyle = "#9fd0ff"; ctx.fillRect(e.x, e.y + 20, 32, 1);
     ctx.fillStyle = DESK.white; ctx.fillRect(e.x + 4, e.y + 4, 24, 3);
+    ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fillRect(e.x + 4, e.y + 9, 18, 2);
   },
 });
 
@@ -345,15 +412,17 @@ registerEntity("tabWindow", {
     Save.markSeen("altTab");
   },
   draw(e, ctx, world) {
-    const on = world.player.has("altTab");
+    const on = world.player.has("altTab"), t = world.time;
     ctx.globalAlpha = on ? 1 : 0.4;
+    if (on) U.glow(ctx, U.cx(e), U.cy(e), Math.max(e.w, e.h) * 0.7, e.color, 0.25 + 0.1 * Math.sin(t * 0.08));
+    ctx.fillStyle = U.rgba(e.color, 0.12); ctx.fillRect(e.x + 2, e.y + 8, e.w - 4, e.h - 10);
     ctx.strokeStyle = e.color; ctx.lineWidth = 2;
     ctx.strokeRect(e.x + 1, e.y + 1, e.w - 2, e.h - 2);
     ctx.fillStyle = e.color; ctx.fillRect(e.x + 1, e.y + 1, e.w - 2, 7);
-    ctx.fillStyle = U.rgba(e.color, 0.12); ctx.fillRect(e.x + 2, e.y + 8, e.w - 4, e.h - 10);
-    // Two overlapping mini-windows = "switch".
+    ctx.fillStyle = "rgba(255,255,255,0.8)"; for (let i = 0; i < 3; i++) ctx.fillRect(e.x + e.w - 8 - i * 6, e.y + 3, 3, 3);
+    // Two overlapping mini-windows that swap places = "switch".
+    const k = (Math.sin(t * 0.05) + 1) * 2;
     ctx.strokeStyle = U.rgba(e.color, 0.9); ctx.lineWidth = 2;
-    const k = Math.floor(world.time / 30) % 2 ? 4 : 0;
     ctx.strokeRect(e.x + 10 + k, e.y + 18, 16, 12); ctx.strokeRect(e.x + 18 - k, e.y + 26, 16, 12);
     ctx.globalAlpha = 1;
   },

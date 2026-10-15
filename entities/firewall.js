@@ -53,29 +53,29 @@ registerEntity("laserWall", {
   },
   onTouch(e, world) { if (e.hot) world.hurtPlayer(1, e); },
   draw(e, ctx, world) {
-    const cx = e.cxNow, col = "#ff2a6d";
-    // Emitter block.
-    ctx.fillStyle = "#2a1424";
-    if (e.dir === "up") ctx.fillRect(cx - 10, e.baseY - 8, 20, 8);
-    else ctx.fillRect(cx - 10, e.baseY, 20, 8);
-    // Track line showing the patrol range.
-    ctx.fillStyle = U.rgba(col, 0.18);
+    const cx = e.cxNow, col = "#ff2a6d", t = world.time;
+    // Emitter sled on its rail.
+    const ey = e.dir === "up" ? e.baseY - 9 : e.baseY;
+    ctx.beginPath(); ctx.rect(cx - 11, ey, 22, 9); Look.fill(ctx, ey, 9, "#3a1a30", 0.2, 0.35);
+    ctx.fillStyle = e.hot ? col : "#6a2a48"; ctx.fillRect(cx - 3, e.dir === "up" ? ey : ey + 7, 6, 2);
+    // Rail showing the patrol range.
     const x0 = Math.min(e.homeX, e.homeX + e.sgn * e.dist), x1 = Math.max(e.homeX, e.homeX + e.sgn * e.dist);
-    ctx.fillRect(x0, e.dir === "up" ? e.baseY - 2 : e.baseY, x1 - x0, 2);
+    ctx.fillStyle = U.rgba(col, 0.2); ctx.fillRect(x0, e.dir === "up" ? e.baseY - 2 : e.baseY, x1 - x0, 2);
+    ctx.fillStyle = U.rgba(col, 0.45); ctx.fillRect(x0, e.dir === "up" ? e.baseY - 3 : e.baseY, 2, 4); ctx.fillRect(x1 - 2, e.dir === "up" ? e.baseY - 3 : e.baseY, 2, 4);
     if (e.hot) {
       const f = 0.8 + Math.random() * 0.2;
-      ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = U.rgba(col, 0.32 * f);
-      ctx.fillRect(cx - 9, e.y, 18, e.h);
-      ctx.fillStyle = U.rgba("#ffd0dd", f);
-      ctx.fillRect(cx - 2, e.y, 4, e.h);
-      ctx.globalCompositeOperation = "source-over";
-      U.glow(ctx, cx, e.dir === "up" ? e.y : e.y + e.h, 16, col, 0.7);
-    } else if (e.state === "warn" && world.time % 6 < 3) {
-      ctx.fillStyle = U.rgba(col, 0.45);
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = U.rgba(col, 0.25 * f); ctx.fillRect(cx - 10, e.y, 20, e.h);
+      ctx.fillStyle = U.rgba(col, 0.55 * f); ctx.fillRect(cx - 4 + Math.sin(t * 0.9), e.y, 8, e.h);
+      ctx.fillStyle = U.rgba("#ffe6ee", f); ctx.fillRect(cx - 1.5, e.y, 3, e.h);
+      ctx.restore();
+      U.glow(ctx, cx, e.dir === "up" ? e.y : e.y + e.h, 18, col, 0.75);
+    } else if (e.state === "warn") {
+      ctx.fillStyle = U.rgba(col, t % 6 < 3 ? 0.55 : 0.2);
       ctx.fillRect(cx - 1, e.y, 2, e.h);
     }
   },
+  light(e) { return e.hot ? [60, "#ff2a6d", 0.8] : null; },
 });
 
 // ------------------------------------------------------------- timedGate
@@ -105,23 +105,25 @@ registerEntity("timedGate", {
     e.solid = closed;
   },
   draw(e, ctx, world) {
-    const col = "#ff3b3b";
-    // Frame posts.
-    ctx.fillStyle = "#3a1018";
-    ctx.fillRect(e.x - 6, e.y, 4, e.h);
-    ctx.fillRect(e.x + e.w + 2, e.y, 4, e.h);
+    const col = "#ff3b3b", t = world.time;
+    for (const px of [e.x - 6, e.x + e.w + 2]) { ctx.beginPath(); ctx.rect(px, e.y, 4, e.h); Look.fill(ctx, e.y, e.h, "#4a1420", 0.2, 0.35); }
     if (e.solid) {
-      ctx.fillStyle = U.rgba(col, 0.3);
-      ctx.fillRect(e.x, e.y, e.w, e.h);
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = U.rgba(col, 0.25); ctx.fillRect(e.x, e.y, e.w, e.h);
       ctx.fillStyle = col;
-      for (let i = 0; i < 3; i++) ctx.fillRect(e.x + 3 + i * 7, e.y, 2, e.h);
-      for (let y = e.y + ((world.time * 2) % 16); y < e.y + e.h; y += 16) ctx.fillRect(e.x, y, e.w, 2);
+      for (let i = 0; i < 3; i++) { ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 0.3 + i * 2); ctx.fillRect(e.x + 3 + i * 7, e.y, 2, e.h); }
+      ctx.globalAlpha = 1;
+      for (let y = e.y + ((t * 2) % 16); y < e.y + e.h; y += 16) ctx.fillRect(e.x, y, e.w, 2);
+      ctx.restore();
     } else if (e.state === "warn") {
-      ctx.fillStyle = U.rgba(col, world.time % 6 < 3 ? 0.35 : 0.1);
+      // Telegraph: the field flickers in before it closes.
+      ctx.fillStyle = U.rgba(col, t % 6 < 3 ? 0.4 : 0.1);
       ctx.fillRect(e.x, e.y, e.w, e.h);
+      ctx.fillStyle = U.rgba(col, 0.7); ctx.fillRect(e.x, e.y, e.w, 2); ctx.fillRect(e.x, e.y + e.h - 2, e.w, 2);
     } else {
-      ctx.fillStyle = U.rgba(col, 0.1);
+      ctx.fillStyle = U.rgba(col, 0.12);
       ctx.fillRect(e.x + 9, e.y, 2, e.h);
     }
   },
+  light(e) { return e.solid ? [50, "#ff3b3b", 0.6] : null; },
 });

@@ -191,46 +191,71 @@ registerEntity("warden", {
   },
 
   draw(e, ctx, world) {
-    const stun = e.mode === "stun";
+    const t = world.time, stun = e.mode === "stun";
     const col = e.flash ? "#ffffff" : stun ? "#ffe14d" : e.enraged ? "#ff3355" : e.color;
-    const x = e.x + (e.mode === "charge" && e.timer < 50 ? U.rand(-2, 2) : 0), y = e.y;
+    const rev = e.mode === "charge" && e.timer < 50, charging = e.mode === "charge" && e.timer >= 50;
+    const x = e.x + (rev ? U.rand(-2, 2) : 0), y = e.y, d = e.dir || 1, cx = x + e.w / 2;
+    Look.shadow(ctx, U.cx(e), e.y + e.h, e.w + 16, 0.45);
     if (e.mode === "sleep") {
-      // Dormant: dark shell with a slow pulse.
-      ctx.fillStyle = "#1e1a24";
-      U.roundRect(ctx, x, y + 8, e.w, e.h - 8, 8); ctx.fill();
-      ctx.strokeStyle = U.rgba(e.color, 0.3 + 0.2 * Math.sin(world.time * 0.05)); ctx.lineWidth = 2; ctx.stroke();
+      // Dormant: dark shell, plates closed, a slow pulse behind the visor.
+      U.roundRect(ctx, x, y + 8, e.w, e.h - 8, 8); Look.fill(ctx, y + 8, e.h - 8, "#1e1a24", 0.1, 0.3);
+      ctx.strokeStyle = U.rgba(e.color, 0.3 + 0.2 * Math.sin(t * 0.05)); ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = "#0c0a10"; ctx.fillRect(x + 10, y + 22, e.w - 20, 10);
+      ctx.fillStyle = U.rgba(e.color, 0.25 + 0.2 * Math.sin(t * 0.05)); ctx.fillRect(cx - 10, y + 25, 20, 4);
       return;
     }
-    U.glow(ctx, U.cx(e), U.cy(e), 70, col, 0.25);
-    // Treads.
-    ctx.fillStyle = "#14141f";
-    U.roundRect(ctx, x - 2, y + e.h - 14, e.w + 4, 14, 6); ctx.fill();
-    ctx.fillStyle = "#3a3a4a";
-    for (let i = 0; i < 6; i++) ctx.fillRect(x + 4 + ((i * 14 + (e.vx ? world.time * 2 : 0)) % (e.w - 4)), y + e.h - 10, 6, 6);
-    // Body.
-    ctx.fillStyle = "#2a1c10";
-    U.roundRect(ctx, x, y + 8, e.w, e.h - 20, 8); ctx.fill();
+    U.glow(ctx, U.cx(e), U.cy(e), 80, col, 0.25);
+    // Treads with moving links and road wheels.
+    U.roundRect(ctx, x - 3, y + e.h - 15, e.w + 6, 15, 7); Look.fill(ctx, y + e.h - 15, 15, "#1a1a26", 0.15, 0.35);
+    ctx.fillStyle = "#4a4a5e";
+    const sp = (e.vx ? t * 2 * U.sign(e.vx) : 0);
+    for (let i = 0; i < 8; i++) ctx.fillRect(x + 2 + (((i * 11 + sp) % (e.w + 2)) + e.w + 2) % (e.w + 2), y + e.h - 14, 5, 3);
+    for (let i = 0; i < 5; i++) { const wx = x + 8 + i * ((e.w - 16) / 4); ctx.fillStyle = "#2a2a3a"; ctx.beginPath(); ctx.arc(wx, y + e.h - 7, 4.5, 0, 6.28); ctx.fill(); ctx.fillStyle = "#6a6a80"; ctx.beginPath(); ctx.arc(wx, y + e.h - 7, 1.5, 0, 6.28); ctx.fill(); }
+    // Hull: bevelled armour with seams and rivets.
+    U.roundRect(ctx, x, y + 8, e.w, e.h - 20, 8); Look.fill(ctx, y + 8, e.h - 20, "#3a2614", 0.2, 0.4);
     ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.stroke();
-    // Armour plates / open hatch.
-    if (stun) {
-      ctx.fillStyle = "#ffe14d";
-      U.glow(ctx, U.cx(e), y + 10, 40, "#ffe14d", 0.8 + Math.sin(world.time * 0.4) * 0.2);
-      ctx.fillRect(x + 22, y + 4, e.w - 44, 8);
-      ctx.fillStyle = "#4a3a10";
-      ctx.fillRect(x + 4, y - 2, 16, 6);
-      ctx.fillRect(x + e.w - 20, y - 2, 16, 6);
-    } else {
-      ctx.fillStyle = "#4a3420";
-      ctx.fillRect(x + 6, y + 2, e.w - 12, 8);
-      ctx.fillStyle = col;
-      for (let i = 0; i < 4; i++) ctx.fillRect(x + 12 + i * 15, y + 4, 8, 3);
+    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(x + 6, y + 36, e.w - 12, 2);
+    for (let i = 0; i < 5; i++) Look.bolt(ctx, x + 10 + i * ((e.w - 20) / 4), y + 41, 1.6);
+    // Front ram (glows hot while charging).
+    const rx = d > 0 ? x + e.w - 2 : x + 2;
+    ctx.fillStyle = charging ? "#ffb070" : "#8a8070";
+    ctx.beginPath(); ctx.moveTo(rx, y + 16); ctx.lineTo(rx + d * 9, y + 26); ctx.lineTo(rx + d * 9, y + 38); ctx.lineTo(rx, y + 46); ctx.closePath(); ctx.fill();
+    if (charging) U.glow(ctx, rx + d * 6, y + 32, 26, "#ff6a2a", 0.8);
+    // Twin side cannons (glow up before a spread volley).
+    const spreading = e.mode === "spread";
+    const sk = spreading ? U.clamp(((e.timer % 30) - 10) / 20, 0, 1) : 0;
+    for (const sx of [x + 8, x + e.w - 8]) {
+      ctx.fillStyle = "#2a1a10"; ctx.fillRect(sx - 4, y + 10, 8, 10);
+      ctx.fillStyle = spreading ? U.mix("#ffb400", "#ffffff", sk) : "#6a4a20"; ctx.fillRect(sx - 3, y + 6, 6, 5);
+      if (spreading && sk > 0) Look.telegraph(ctx, sx, y + 7, 5, "#ffb400", sk);
     }
-    // Visor bar — a single horizontal light that tracks facing.
-    const vx = U.cx(e) + e.dir * 10;
-    ctx.fillStyle = "#120c06";
-    ctx.fillRect(x + 10, y + 22, e.w - 20, 10);
-    ctx.fillStyle = col;
-    ctx.fillRect(vx - 12, y + 24, 24, 6);
-    U.glow(ctx, vx, y + 27, 22, col, 0.8);
+    // Armour plates on top, or the open hatch with an exposed core when stunned.
+    if (stun) {
+      ctx.fillStyle = "#4a3a10"; ctx.fillRect(x + 2, y - 3, 18, 7); ctx.fillRect(x + e.w - 20, y - 3, 18, 7);
+      const g = ctx.createRadialGradient(cx, y + 9, 2, cx, y + 9, 20);
+      g.addColorStop(0, "#ffffff"); g.addColorStop(0.4, "#ffe14d"); g.addColorStop(1, "rgba(255,180,0,0)");
+      ctx.fillStyle = g; ctx.fillRect(x + 18, y - 6, e.w - 36, 26);
+      U.glow(ctx, cx, y + 8, 44, "#ffe14d", 0.8 + Math.sin(t * 0.4) * 0.2);
+      if (t % 5 === 0 && Game.state === "play") world.particles.emit(cx + U.rand(-16, 16), y + 4, { vy: -1.2, vx: U.rand(-0.5, 0.5), life: 26, size: 4, grow: 0.15, color: "#5a5048", shape: "smoke", alpha: 0.45 });
+    } else {
+      ctx.beginPath(); ctx.rect(x + 6, y + 1, e.w - 12, 9); Look.fill(ctx, y + 1, 9, "#5a4026", 0.3, 0.3);
+      for (let i = 0; i < 4; i++) { ctx.fillStyle = col; ctx.fillRect(x + 12 + i * 15, y + 4, 8, 3); }
+    }
+    // Exhaust stacks: smoke, or flames while revving.
+    const ex = d > 0 ? x + 6 : x + e.w - 10;
+    ctx.fillStyle = "#3a3a4a"; ctx.fillRect(ex, y - 6, 5, 10);
+    if (rev) Look.thruster(ctx, ex + 2.5, y - 6, -d * 0.3, -1, 14, "#ff6a2a", t);
+    else if (t % 18 === 0 && Game.state === "play") world.particles.emit(ex + 2.5, y - 7, { vy: -0.8, life: 30, size: 3, grow: 0.15, color: "#4a4450", shape: "smoke", alpha: 0.4 });
+    // Visor bar: a single light that tracks facing (no face).
+    const vx = cx + d * 10;
+    ctx.fillStyle = "#120c06"; U.roundRect(ctx, x + 10, y + 21, e.w - 20, 12, 4); ctx.fill();
+    ctx.fillStyle = col; ctx.fillRect(vx - 12, y + 24, 24, 6);
+    ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.fillRect(vx - 12 + ((t * 0.6) % 22), y + 24, 2, 6);
+    U.glow(ctx, vx, y + 27, 24, col, 0.85);
+    if (rev) Look.warn(ctx, cx, y - 20, "#ff3355", t);
+    if (e.mode === "hop" && e.onGround && e.timer > 0) {
+      // Crouch before the next hop: coils glow.
+      for (const sx of [x + 14, x + e.w - 14]) U.glow(ctx, sx, y + e.h - 16, 14, "#ffb400", 0.5);
+    }
   },
 });

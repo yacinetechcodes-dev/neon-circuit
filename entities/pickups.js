@@ -27,18 +27,27 @@ registerEntity("core", {
     e.dead = true;
     world.cores++;
     sfx.play("core");
-    world.particles.burst(U.cx(e), U.cy(e), 10, "#00f0ff", 3);
-    world.particles.ring(U.cx(e), U.cy(e), "#00f0ff", 16, 16);
+    world.particles.pickup(U.cx(e), U.cy(e), "#00f0ff");
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e) + Math.sin(world.time * 0.07 + e.phase) * 3;
-    U.glow(ctx, cx, cy, 18, "#00f0ff", 0.55);
-    const s = 7, k = Math.cos(world.time * 0.06 + e.phase);
-    ctx.fillStyle = "#bff8ff";
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - s); ctx.lineTo(cx + s * k, cy); ctx.lineTo(cx, cy + s); ctx.lineTo(cx - s * k, cy);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = "#00f0ff"; ctx.lineWidth = 1.5; ctx.stroke();
+    const t = world.time;
+    const cx = U.cx(e), cy = U.cy(e) + Math.sin(t * 0.07 + e.phase) * 3;
+    U.glow(ctx, cx, cy, 20, "#00f0ff", 0.55);
+    // A faceted data crystal that turns (width follows the spin).
+    const s = 8, k = Math.cos(t * 0.06 + e.phase), w = s * Math.abs(k) + 1;
+    const lit = k > 0;
+    ctx.fillStyle = lit ? "#dffcff" : "#7fe8f5";
+    ctx.beginPath(); ctx.moveTo(cx, cy - s); ctx.lineTo(cx + w, cy); ctx.lineTo(cx, cy + s); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = lit ? "#7fe8f5" : "#3ac8dc";
+    ctx.beginPath(); ctx.moveTo(cx, cy - s); ctx.lineTo(cx - w, cy); ctx.lineTo(cx, cy + s); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#00f0ff"; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(cx, cy - s); ctx.lineTo(cx + w, cy); ctx.lineTo(cx, cy + s); ctx.lineTo(cx - w, cy); ctx.closePath(); ctx.stroke();
+    // An occasional sparkle.
+    if (((t + e.phase * 40) % 90) < 10) {
+      const a = ((t + e.phase * 40) % 90) / 10;
+      ctx.fillStyle = `rgba(255,255,255,${1 - a})`;
+      ctx.fillRect(cx + 3 - 4 * a, cy - 5, 8 * a, 1); ctx.fillRect(cx + 3 - 0.5, cy - 5 - 4 * a, 1, 8 * a);
+    }
   },
 });
 
@@ -53,21 +62,31 @@ registerEntity("secretCore", {
     e.dead = true;
     world.secrets++;
     sfx.play("secret");
-    world.particles.burst(U.cx(e), U.cy(e), 30, "#ffd23d", 5, { glow: true });
+    world.particles.pickup(U.cx(e), U.cy(e), "#ffd23d");
+    world.particles.burst(U.cx(e), U.cy(e), 24, "#ffd23d", 5, { glow: true });
     world.particles.ring(U.cx(e), U.cy(e), "#ffd23d", 40, 30);
+    world.flash(U.cx(e), U.cy(e), 160, "#ffd23d", 24);
     world.camera.shake(3);
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e) + Math.sin(world.time * 0.05) * 3;
-    U.glow(ctx, cx, cy, 30, "#ffd23d", 0.7);
+    const t = world.time;
+    const cx = U.cx(e), cy = U.cy(e) + Math.sin(t * 0.05) * 3;
+    U.glow(ctx, cx, cy, 34, "#ffd23d", 0.75);
+    // Orbiting sparks.
+    for (let i = 0; i < 3; i++) {
+      const a = t * 0.06 + i * 2.09;
+      ctx.fillStyle = "#fff3b0"; ctx.fillRect(cx + Math.cos(a) * 15 - 1, cy + Math.sin(a) * 6 - 1, 2, 2);
+    }
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(world.time * 0.03);
+    ctx.rotate(t * 0.03);
     ctx.strokeStyle = "#ffd23d"; ctx.lineWidth = 2;
-    ctx.strokeRect(-9, -9, 18, 18);
-    ctx.rotate(Math.PI / 4);
-    ctx.fillStyle = "#fff3b0";
-    ctx.fillRect(-6, -6, 12, 12);
+    ctx.strokeRect(-10, -10, 20, 20);
+    ctx.rotate(Math.PI / 4 - t * 0.05);
+    const g = ctx.createLinearGradient(-7, -7, 7, 7);
+    g.addColorStop(0, "#ffffff"); g.addColorStop(1, "#ffb400");
+    ctx.fillStyle = g; ctx.fillRect(-6.5, -6.5, 13, 13);
+    ctx.strokeStyle = "rgba(120,70,0,0.6)"; ctx.lineWidth = 1; ctx.strokeRect(-3, -3, 6, 6);
     ctx.restore();
   },
 });
@@ -86,25 +105,40 @@ registerEntity("checkpoint", {
     sfx.play("checkpoint");
     const p = world.player;
     if (p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + 1);
-    world.particles.burst(U.cx(e), e.y + 8, 24, "#7dff4a", 4, { glow: true });
-    world.particles.ring(U.cx(e), e.y + 8, "#7dff4a", 30);
+    world.particles.pickup(U.cx(e), e.y + 8, "#7dff4a");
+    world.particles.burst(U.cx(e), e.y + 8, 16, "#7dff4a", 4, { glow: true });
+    world.flash(U.cx(e), e.y + 8, 140, "#7dff4a", 20);
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), col = e.on ? "#7dff4a" : "#3a5a7a";
-    ctx.fillStyle = "#16233f";
-    ctx.fillRect(cx - 3, e.y + 12, 6, e.h - 12);
-    ctx.fillRect(cx - 10, e.y + e.h - 6, 20, 6);
+    const t = world.time, cx = U.cx(e), col = e.on ? "#7dff4a" : "#3a5a7a";
+    Look.shadow(ctx, cx, e.y + e.h, 22);
+    // Base plate and mast.
+    ctx.beginPath(); ctx.rect(cx - 11, e.y + e.h - 6, 22, 6);
+    Look.fill(ctx, e.y + e.h - 6, 6, "#22345c");
+    ctx.fillStyle = col; ctx.fillRect(cx - 8, e.y + e.h - 6, 16, 1);
+    ctx.beginPath(); ctx.rect(cx - 3, e.y + 12, 6, e.h - 18);
+    Look.fill(ctx, e.y + 12, e.h - 18, "#1c2b4e");
+    for (let i = 0; i < 3; i++) {
+      const lit = e.on && Math.floor(t / 10) % 3 === i;
+      ctx.fillStyle = lit ? "#d8ffcc" : col; ctx.fillRect(cx - 3, e.y + 16 + i * 6, 6, 2);
+    }
+    // Beacon head: a ring that unfolds once activated.
+    const open = e.on ? 1 : 0.4;
+    const pulse = e.on ? 0.6 + Math.sin(t * 0.1) * 0.3 : 0.2;
+    U.glow(ctx, cx, e.y + 8, e.on ? 34 : 14, col, pulse);
+    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, e.y + 8, 9, Math.PI * (1 - open * 0.5) - 0.3, Math.PI * (2 + open * 0.5) + 0.3 - Math.PI * (1 - open)); ctx.stroke();
     ctx.fillStyle = col;
-    ctx.fillRect(cx - 3, e.y + 18, 6, 2);
-    ctx.fillRect(cx - 3, e.y + 28, 6, 2);
-    const pulse = e.on ? 0.6 + Math.sin(world.time * 0.1) * 0.3 : 0.2;
-    U.glow(ctx, cx, e.y + 8, e.on ? 30 : 14, col, pulse);
-    ctx.fillStyle = col;
-    ctx.beginPath(); ctx.arc(cx, e.y + 8, 6, 0, 6.28); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, e.y + 8, 5, 0, 6.28); ctx.fill();
+    ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(cx - 1.5, e.y + 6.5, 1.8, 0, 6.28); ctx.fill();
     if (e.on) {
-      ctx.globalAlpha = 0.25;
-      ctx.fillRect(cx - 1, e.y - 60, 2, 60 * (0.5 + 0.5 * Math.sin(world.time * 0.05)));
-      ctx.globalAlpha = 1;
+      // Light column and rising motes.
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createLinearGradient(0, e.y - 70, 0, e.y + 8);
+      g.addColorStop(0, U.rgba(col, 0)); g.addColorStop(1, U.rgba(col, 0.35));
+      ctx.fillStyle = g; ctx.fillRect(cx - 2, e.y - 70, 4, 78);
+      for (let i = 0; i < 3; i++) { const k = ((t * 0.6 + i * 23) % 70); ctx.fillStyle = U.rgba(col, 1 - k / 70); ctx.fillRect(cx - 1 + Math.sin(t * 0.05 + i) * 3, e.y + 4 - k, 2, 2); }
+      ctx.restore();
     }
   },
 });
@@ -123,30 +157,44 @@ registerEntity("exit", {
   },
   update(e) { if (e.warned > 0) e.warned--; },
   draw(e, ctx, world) {
+    const t = world.time;
     const locked = world.bossesAlive();
     const col = locked ? "#ff3355" : "#7dff4a";
-    // Clear label above the portal.
-    ctx.font = "bold 13px monospace"; ctx.textAlign = "center";
-    ctx.fillStyle = col; ctx.fillText(locked ? "LOCKED" : "EXIT", U.cx(e), e.y - 10 + Math.sin(world.time * 0.08) * 2);
-    ctx.textAlign = "left";
     const cx = U.cx(e), cy = U.cy(e);
-    U.glow(ctx, cx, cy, 60, col, 0.35 + Math.sin(world.time * 0.08) * 0.1);
-    ctx.strokeStyle = col; ctx.lineWidth = 3;
-    U.roundRect(ctx, e.x, e.y, e.w, e.h, 8); ctx.stroke();
-    ctx.fillStyle = U.rgba(col, 0.12); ctx.fill();
-    // Rising rings.
-    for (let i = 0; i < 4; i++) {
-      const k = ((world.time * 0.8 + i * 16) % 64) / 64;
-      ctx.globalAlpha = 1 - k;
-      ctx.fillStyle = col;
-      ctx.fillRect(e.x + 6, e.y + e.h - 6 - k * (e.h - 10), e.w - 12, 2);
+    ctx.font = "bold 13px monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = col; ctx.fillText(locked ? "LOCKED" : "EXIT", cx, e.y - 12 + Math.sin(t * 0.08) * 2);
+    ctx.textAlign = "left";
+    U.glow(ctx, cx, cy, 64, col, 0.35 + Math.sin(t * 0.08) * 0.1);
+    // Frame: two pylons with lights, joined at the top.
+    for (const px of [e.x - 3, e.x + e.w - 3]) {
+      ctx.beginPath(); ctx.rect(px, e.y - 2, 6, e.h + 2);
+      Look.fill(ctx, e.y, e.h, "#1c2b4e");
+      for (let i = 0; i < 4; i++) { ctx.fillStyle = Math.floor(t / 6 + i) % 4 === 0 ? "#ffffff" : col; ctx.fillRect(px + 2, e.y + 4 + i * (e.h / 4), 2, 3); }
     }
+    ctx.fillStyle = "#1c2b4e"; ctx.fillRect(e.x - 3, e.y - 6, e.w + 6, 5);
+    ctx.fillStyle = col; ctx.fillRect(e.x, e.y - 5, e.w, 1);
+    // Swirling portal field.
+    ctx.save();
+    ctx.beginPath(); ctx.rect(e.x + 3, e.y, e.w - 6, e.h); ctx.clip();
+    ctx.fillStyle = U.rgba(col, 0.14); ctx.fillRect(e.x, e.y, e.w, e.h);
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 5; i++) {
+      const k = ((t * 0.8 + i * 13) % 64) / 64;
+      ctx.globalAlpha = (1 - k) * 0.8;
+      ctx.fillStyle = col;
+      ctx.fillRect(e.x + 4, e.y + e.h - 6 - k * (e.h - 10), e.w - 8, 2);
+    }
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 2; i++) { ctx.beginPath(); ctx.ellipse(cx, cy, (e.w / 2 - 4) * (0.5 + 0.5 * Math.sin(t * 0.05 + i * 3)), e.h / 2 - 4, 0, 0, 6.28); ctx.stroke(); }
+    ctx.restore();
     ctx.globalAlpha = 1;
     if (locked) {
-      ctx.fillStyle = col;
-      ctx.fillRect(cx - 8, cy - 2, 16, 12);
-      ctx.strokeStyle = col; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, cy - 2, 6, Math.PI, 0); ctx.stroke();
+      // Padlock with a shackle.
+      ctx.fillStyle = "#3a0a14"; U.roundRect(ctx, cx - 9, cy - 3, 18, 14, 3); ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy - 3, 6, Math.PI, 0); ctx.stroke();
+      ctx.fillStyle = col; ctx.fillRect(cx - 1, cy + 2, 2, 5);
     }
   },
 });
@@ -182,14 +230,18 @@ registerEntity("powerup", {
     if (!Save.seen("power_" + e.kind)) { Save.markSeen("power_" + e.kind); world.showHint(`${P.label}: ${P.desc}`, 2.5); }
     else world.showHint(P.text, 1.2);
     Guide.discover("p:" + e.kind);
-    world.particles.burst(U.cx(e), U.cy(e), 20, P.color, 4, { glow: true });
-    world.particles.ring(U.cx(e), U.cy(e), P.color, 30);
+    world.particles.pickup(U.cx(e), U.cy(e), P.color);
+    world.particles.burst(U.cx(e), U.cy(e), 14, P.color, 4, { glow: true });
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e) + Math.sin(world.time * 0.06) * 3;
-    U.glow(ctx, cx, cy, 26, e.color, 0.6);
-    ctx.fillStyle = "#0b1328";
-    U.roundRect(ctx, cx - 11, cy - 11, 22, 22, 6); ctx.fill();
+    const t = world.time;
+    const cx = U.cx(e), cy = U.cy(e) + Math.sin(t * 0.06) * 3;
+    U.glow(ctx, cx, cy, 28, e.color, 0.6);
+    // Rotating outer ring segments around a capsule.
+    ctx.strokeStyle = U.rgba(e.color, 0.7); ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) { const a = t * 0.05 + i * 2.09; ctx.beginPath(); ctx.arc(cx, cy, 16, a, a + 1.2); ctx.stroke(); }
+    U.roundRect(ctx, cx - 11, cy - 11, 22, 22, 6);
+    Look.fill(ctx, cy - 11, 22, "#16203e", 0.25, 0.4);
     ctx.strokeStyle = e.color; ctx.lineWidth = 2; ctx.stroke();
     PowerIcon(ctx, e.kind, cx, cy, e.color);
   },
@@ -330,14 +382,22 @@ registerEntity("upgrade", {
     world.banner = { text: info.name, sub: UI.keys([info.desc, info.how].filter(Boolean).join("   ")), t: 180, max: 180, color: "#ffd23d" };
     Save.markSeen("ability_" + e.kind);
     Guide.discover("a:" + e.kind);
-    world.particles.burst(U.cx(e), U.cy(e), 40, "#ffd23d", 6, { glow: true });
+    world.particles.pickup(U.cx(e), U.cy(e), "#ffd23d");
+    world.particles.burst(U.cx(e), U.cy(e), 36, "#ffd23d", 6, { glow: true });
+    world.flash(U.cx(e), U.cy(e), 220, "#ffd23d", 30);
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e) + Math.sin(world.time * 0.05) * 4;
-    U.glow(ctx, cx, cy, 40, "#ffd23d", 0.7);
-    ctx.fillStyle = "#1a1530";
-    ctx.beginPath(); ctx.arc(cx, cy, 13, 0, 6.28); ctx.fill();
+    const t = world.time;
+    const cx = U.cx(e), cy = U.cy(e) + Math.sin(t * 0.05) * 4;
+    U.glow(ctx, cx, cy, 46, "#ffd23d", 0.7);
+    // Rays.
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.translate(cx, cy); ctx.rotate(t * 0.01);
+    for (let i = 0; i < 8; i++) { ctx.rotate(Math.PI / 4); ctx.fillStyle = "rgba(255,210,61,0.12)"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-4, -34); ctx.lineTo(4, -34); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(cx, cy, 14, 0, 6.28);
+    Look.fill(ctx, cy - 14, 28, "#2a2050", 0.25, 0.4);
     ctx.strokeStyle = "#ffd23d"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = "rgba(255,243,176,0.5)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, 17, t * 0.04, t * 0.04 + 2); ctx.stroke();
     PowerIcon(ctx, e.kind, cx, cy, "#ffd23d");
   },
 });
@@ -359,21 +419,25 @@ registerEntity("dashRefill", {
     e.cool = 150;
     sfx.play("refill");
     Save.markSeen("crystal");
-    world.particles.burst(U.cx(e), U.cy(e), 16, "#ff3df0", 4);
-    world.particles.ring(U.cx(e), U.cy(e), "#ff3df0", 24);
+    world.particles.pickup(U.cx(e), U.cy(e), "#ff3df0");
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e) + Math.sin(world.time * 0.08) * 2;
+    const t = world.time;
+    const cx = U.cx(e), cy = U.cy(e) + Math.sin(t * 0.08) * 2;
     if (e.cool > 0) {
+      // Recharging: a dim outline that fills up from the bottom.
       ctx.strokeStyle = U.rgba("#ff3df0", 0.3); ctx.lineWidth = 1;
-      ctx.strokeRect(cx - 5, cy - 8, 10, 16);
+      ctx.beginPath(); ctx.moveTo(cx, cy - 11); ctx.lineTo(cx + 7, cy); ctx.lineTo(cx, cy + 11); ctx.lineTo(cx - 7, cy); ctx.closePath(); ctx.stroke();
       return;
     }
-    U.glow(ctx, cx, cy, 24, "#ff3df0", 0.7);
-    ctx.fillStyle = "#ffb3f6";
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - 11); ctx.lineTo(cx + 7, cy); ctx.lineTo(cx, cy + 11); ctx.lineTo(cx - 7, cy);
-    ctx.closePath(); ctx.fill();
+    U.glow(ctx, cx, cy, 26, "#ff3df0", 0.7);
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(Math.cos(t * 0.05) * 0.25 + 0.85, 1);
+    const g = ctx.createLinearGradient(0, -11, 0, 11);
+    g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, "#ffb3f6"); g.addColorStop(1, "#ff3df0");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(7, 0); ctx.lineTo(0, 12); ctx.lineTo(-7, 0); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = "#ff3df0"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(0, 12); ctx.stroke();
+    ctx.restore();
   },
 });

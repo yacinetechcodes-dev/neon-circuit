@@ -74,31 +74,34 @@ registerEntity("avDrone", {
     e.scan = Math.sin(e.t * 0.05) * 0.6;
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e);
+    const cx = U.cx(e), cy = U.cy(e), t = e.t;
     const locked = e.lock > 0;
     const col = e.flash ? "#ffffff" : locked ? "#ff3355" : e.color;
-    // Scan cone.
-    ctx.globalAlpha = locked ? 0.22 : 0.1;
-    ctx.fillStyle = col;
-    const a = Math.PI / 2 + e.scan;
-    ctx.beginPath(); ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(a - 0.3) * 120, cy + Math.sin(a - 0.3) * 120);
-    ctx.lineTo(cx + Math.cos(a + 0.3) * 120, cy + Math.sin(a + 0.3) * 120);
-    ctx.closePath(); ctx.fill();
-    ctx.globalAlpha = 1;
-    // Hexagonal shell with a single scanning light.
-    ctx.fillStyle = "#06180e";
+    // Scan cone with sweep lines (turns red and solid while locking on).
+    const a = Math.PI / 2 + (e.scan || 0);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, 130);
+    g.addColorStop(0, U.rgba(col, locked ? 0.32 : 0.16)); g.addColorStop(1, U.rgba(col, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, 130, a - 0.3, a + 0.3); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = U.rgba(col, locked ? 0.6 : 0.25); ctx.lineWidth = 1;
+    const sw = a - 0.3 + ((t * 0.03) % 1) * 0.6;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(sw) * 120, cy + Math.sin(sw) * 120); ctx.stroke();
+    ctx.restore();
+    // Four little stabiliser fins.
+    ctx.fillStyle = "#0e2a18";
+    for (let i = 0; i < 4; i++) { const k = (Math.PI / 2) * i + Math.PI / 4 + t * 0.02; ctx.save(); ctx.translate(cx + Math.cos(k) * 13, cy + Math.sin(k) * 11); ctx.rotate(k); ctx.fillRect(-2, -3, 6, 6); ctx.restore(); }
+    // Hexagonal shell.
     ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const k = (Math.PI / 3) * i + e.t * 0.02;
-      const x = cx + Math.cos(k) * 13, y = cy + Math.sin(k) * 11;
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    }
-    ctx.closePath(); ctx.fill();
+    for (let i = 0; i < 6; i++) { const k = (Math.PI / 3) * i + t * 0.02; const x = cx + Math.cos(k) * 13, y = cy + Math.sin(k) * 11; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.closePath();
+    Look.fill(ctx, cy - 11, 22, "#0a2a16", 0.25, 0.4);
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
-    U.glow(ctx, cx, cy, locked ? 22 : 14, col, 0.8);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(cx - 5 + e.scan * 5, cy - 1.5, 10, 3);
+    // Lens slit with a scanning light.
+    ctx.fillStyle = "#020a04"; U.roundRect(ctx, cx - 8, cy - 3, 16, 6, 3); ctx.fill();
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(cx - 5 + (e.scan || 0) * 5, cy - 1.5, 10, 3);
+    U.glow(ctx, cx + (e.scan || 0) * 5, cy, locked ? 24 : 14, col, 0.8);
+    if (locked) { Look.telegraph(ctx, cx, cy + 14, 5, "#ff3355", 1 - e.lock / 34); Look.warn(ctx, cx, cy - 22, "#ff3355", t); }
   },
 });
 
@@ -128,42 +131,64 @@ registerEntity("firewallWall", {
     if (e.phasing) world.solids = world.solids.filter((s) => s !== e);
   },
   draw(e, ctx, world) {
-    const col = e.flash ? "#ffffff" : e.color;
+    const col = e.flash ? "#ffffff" : e.color, t = world.time;
+    ctx.save();
     ctx.globalAlpha = e.phasing ? 0.35 : 1;
-    ctx.fillStyle = "#200a04";
-    ctx.fillRect(e.x, e.y, e.w, e.h);
-    // Brick rows with rising embers of code.
-    ctx.fillStyle = col;
+    // Dark brick body with glowing mortar and a heat gradient.
+    const g = ctx.createLinearGradient(0, e.y, 0, e.y + e.h);
+    g.addColorStop(0, "#1a0804"); g.addColorStop(1, "#3a1206");
+    ctx.fillStyle = g; ctx.fillRect(e.x, e.y, e.w, e.h);
+    ctx.fillStyle = U.rgba(col, 0.75);
     for (let y = e.y, row = 0; y < e.y + e.h; y += 10, row++) {
+      ctx.fillRect(e.x, y, e.w, 1);
       const off = row % 2 ? 6 : 0;
-      for (let x = e.x - off; x < e.x + e.w; x += 12) ctx.fillRect(Math.max(e.x, x) + 1, y + 1, Math.min(10, e.x + e.w - Math.max(e.x, x) - 1), 1);
+      for (let x = e.x - off + 12; x < e.x + e.w; x += 12) if (x > e.x) ctx.fillRect(x, y, 1, 10);
     }
-    const k = (world.time * 1.5 + e.col * 37) % e.h;
-    ctx.fillStyle = U.rgba(col, 0.6);
-    ctx.fillRect(e.x + 2, e.y + e.h - k, e.w - 4, 3);
+    // Flames licking up the face and rising code embers.
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 3; i++) {
+      const k = (t * (1.2 + i * 0.4) + e.col * 37 + i * 40) % e.h;
+      ctx.fillStyle = U.rgba(i === 1 ? "#ffd27a" : col, 0.55 * (1 - k / e.h));
+      ctx.fillRect(e.x + 2 + i * (e.w / 3), e.y + e.h - k, e.w / 3 - 3, 3);
+    }
+    const fg = ctx.createLinearGradient(0, e.y + e.h - 20, 0, e.y + e.h);
+    fg.addColorStop(0, U.rgba(col, 0)); fg.addColorStop(1, U.rgba(col, 0.35 + 0.1 * Math.sin(t * 0.3)));
+    ctx.fillStyle = fg; ctx.fillRect(e.x, e.y + e.h - 20, e.w, 20);
+    ctx.globalCompositeOperation = "source-over";
     // Health ticks.
     ctx.fillStyle = col;
     for (let i = 0; i < e.hp; i++) ctx.fillRect(e.x + 3 + i * 3.4, e.y + 3, 2, 4);
-    if (!e.phasing && world.time % 4 === 0) U.glow(ctx, U.cx(e), e.y + e.h - 6, 18, col, 0.35);
-    ctx.globalAlpha = 1;
+    ctx.restore();
+    if (!e.phasing && t % 4 === 0) U.glow(ctx, U.cx(e), e.y + e.h - 6, 20, col, 0.4);
   },
 });
 
 // ---------------------------------------------------------- bugCrawler
 function drawBug(ctx, e, segs) {
-  const col = e.flash ? "#ffffff" : e.color;
+  const col = e.flash ? "#ffffff" : e.color, t = e.t;
   const by = e.y + e.h - 5;
-  for (let i = 0; i < segs; i++) {
+  Look.shadow(ctx, U.cx(e), e.y + e.h, e.w);
+  // Segments from tail to head; legs scuttle in a wave.
+  for (let i = segs - 1; i >= 0; i--) {
     const x = e.x + e.w / 2 - e.dir * (i - 1) * (e.w / (segs + 0.5));
     const r = e.h * 0.42 - i * 0.6;
-    const bob = Math.sin(e.t * 0.4 + i) * 1.2;
-    ctx.fillStyle = "#0e2206";
-    ctx.beginPath(); ctx.arc(x, by - r + 3 + bob, r, 0, 6.28); ctx.fill();
+    const bob = Math.sin(t * 0.4 + i) * 1.2;
+    ctx.strokeStyle = "#1e4a0a"; ctx.lineWidth = 1.5; ctx.lineCap = "round";
+    const s1 = Math.sin(t * 0.5 + i * 1.3) * 2;
+    ctx.beginPath(); ctx.moveTo(x - 3, by + 1); ctx.lineTo(x - 5 + s1, by + 5); ctx.moveTo(x + 3, by + 1); ctx.lineTo(x + 5 - s1, by + 5); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, by - r + 3 + bob, r, 0, 6.28);
+    Look.fill(ctx, by - r * 2 + 3 + bob, r * 2, "#163a08", 0.35, 0.35);
     ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x - 3, by + 2); ctx.lineTo(x - 5, by + 5); ctx.moveTo(x + 3, by + 2); ctx.lineTo(x + 5, by + 5); ctx.stroke();
+    ctx.fillStyle = U.rgba(col, 0.35); ctx.fillRect(x - r * 0.6, by - r + 2 + bob, r * 1.2, 1);
   }
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(e.x + e.w / 2 + e.dir * (e.w / 2 - 4) - 1.5, by - e.h * 0.5, 3, 3);
+  // Head: mandibles and a sensor dot (no face).
+  const hx = e.x + e.w / 2 + e.dir * (e.w / 2 - 4), hy = by - e.h * 0.45;
+  ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+  const m = Math.abs(Math.sin(t * 0.3)) * 2;
+  ctx.beginPath(); ctx.moveTo(hx, hy + 2); ctx.lineTo(hx + e.dir * (4 + m), hy + 4); ctx.moveTo(hx, hy + 5); ctx.lineTo(hx + e.dir * (4 + m), hy + 3); ctx.stroke();
+  ctx.strokeStyle = U.rgba(col, 0.7); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(hx - e.dir * 2, hy - 2); ctx.lineTo(hx + e.dir * 3, hy - 7 + Math.sin(t * 0.3)); ctx.stroke();
+  Look.core(ctx, hx, hy + 0.5, 1.8, col, t);
 }
 
 registerEntity("bugCrawler", {
@@ -236,33 +261,36 @@ registerEntity("trojan", {
     world.enemyContact(e);
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e);
+    const cx = U.cx(e), cy = U.cy(e), t = e.t;
     if (e.mode === "disguise") {
-      // Same look as a repair power-up…
-      const glitch = (e.t + e.col * 31) % 170 < 4;
-      const gx = glitch ? U.rand(-3, 3) : 0;
-      U.glow(ctx, cx, cy, 26, "#ff4d6d", 0.6);
-      ctx.fillStyle = "#0b1328";
-      U.roundRect(ctx, cx - 11 + gx, cy - 11, 22, 22, 6); ctx.fill();
+      // Same look as a repair power-up… with a tell-tale glitch every few seconds.
+      const glitch = (t + e.col * 31) % 170 < 5;
+      const gx = glitch ? U.rand(-3, 3) : 0, by = Math.sin(world.time * 0.06) * 3;
+      U.glow(ctx, cx, cy + by, 28, "#ff4d6d", 0.6);
+      ctx.strokeStyle = U.rgba("#ff4d6d", 0.7); ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) { const a = world.time * 0.05 + i * 2.09; ctx.beginPath(); ctx.arc(cx, cy + by, 16, a, a + 1.2); ctx.stroke(); }
+      U.roundRect(ctx, cx - 11 + gx, cy - 11 + by, 22, 22, 6);
+      Look.fill(ctx, cy - 11 + by, 22, "#16203e", 0.25, 0.4);
       ctx.strokeStyle = glitch ? "#ff3df0" : "#ff4d6d"; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = glitch ? "#ff3df0" : "#ff4d6d";
-      ctx.fillRect(cx - 2 + gx, cy - 6, 4, 12); ctx.fillRect(cx - 6 + gx, cy - 2, 12, 4);
+      ctx.fillRect(cx - 2 + gx, cy - 6 + by, 4, 12); ctx.fillRect(cx - 6 + gx, cy - 2 + by, 12, 4);
+      if (glitch) { ctx.fillStyle = "rgba(255,61,240,0.5)"; ctx.fillRect(cx - 14, cy - 4 + by + U.rand(-6, 6), 28, 2); }
       return;
     }
-    // …until it unfolds into a jagged box.
+    // …until it unfolds into a jagged snapping box.
     const col = e.flash ? "#ffffff" : e.color;
-    ctx.fillStyle = "#1e0a22";
-    ctx.fillRect(e.x, e.y + 6, e.w, e.h - 6);
-    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.strokeRect(e.x, e.y + 6, e.w, e.h - 6);
-    ctx.fillStyle = col;
-    const open = 3 + Math.abs(Math.sin(e.t * 0.25)) * 5;
-    ctx.save(); ctx.translate(e.x, e.y + 6); ctx.rotate(-0.3 - open * 0.04);
-    ctx.fillRect(0, -3, e.w * 0.9, 3);
+    Look.shadow(ctx, cx, e.y + e.h, e.w);
+    Look.box(ctx, e.x, e.y + 6, e.w, e.h - 6, 3, "#2e0e36", col, { seam: false });
+    ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fillRect(e.x + 3, e.y + 12, e.w - 6, 3);
+    const open = 3 + Math.abs(Math.sin(t * 0.25)) * 6;
+    // The lid snaps open and shut.
+    ctx.save(); ctx.translate(e.x, e.y + 6); ctx.rotate(-0.3 - open * 0.05);
+    ctx.fillStyle = "#3a1244"; ctx.fillRect(0, -4, e.w * 0.95, 4);
+    ctx.fillStyle = col; ctx.fillRect(0, -4, e.w * 0.95, 1.5);
     ctx.restore();
-    for (let i = 0; i < 4; i++) {
-      ctx.beginPath(); ctx.moveTo(e.x + 2 + i * 6, e.y + 6); ctx.lineTo(e.x + 5 + i * 6, e.y + 6 - open); ctx.lineTo(e.x + 8 + i * 6, e.y + 6); ctx.fill();
-    }
-    U.glow(ctx, cx, cy + 3, 12, col, 0.7);
+    ctx.fillStyle = "#ffe6f8";
+    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(e.x + 2 + i * 6, e.y + 6); ctx.lineTo(e.x + 5 + i * 6, e.y + 6 - open); ctx.lineTo(e.x + 8 + i * 6, e.y + 6); ctx.fill(); }
+    Look.core(ctx, cx, cy + 4, 3, col, t, true);
   },
 });
 
@@ -290,25 +318,28 @@ registerEntity("glitchBlock", {
     if (was !== "off" && e.state === "off" && world.onScreen(e) && e.col % 3 === 0) sfx.play("glitch");
   },
   draw(e, ctx, world) {
-    const th = world.theme;
+    const th = world.theme, t = world.time;
     if (!e.solid) {
-      const forming = e.state === "forming" && world.time % 6 < 3;
-      ctx.strokeStyle = U.rgba(HACK_GREEN, forming ? 0.7 : 0.25);
-      ctx.setLineDash([3, 4]); ctx.strokeRect(e.x + 1.5, e.y + 1.5, 29, 29); ctx.setLineDash([]);
-      if (world.time % 9 === 0) { ctx.fillStyle = U.rgba(HACK_GREEN, 0.4); ctx.fillRect(e.x + Math.random() * 28, e.y + Math.random() * 28, 4, 2); }
+      const forming = e.state === "forming" && t % 6 < 3;
+      ctx.strokeStyle = U.rgba(HACK_GREEN, forming ? 0.8 : 0.25); ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]); ctx.lineDashOffset = -t * 0.3; ctx.strokeRect(e.x + 1.5, e.y + 1.5, 29, 29); ctx.setLineDash([]);
+      if (forming) { ctx.fillStyle = U.rgba(HACK_GREEN, 0.15); ctx.fillRect(e.x, e.y, 32, 32); }
+      if (t % 9 === 0) { ctx.fillStyle = U.rgba(HACK_GREEN, 0.4); ctx.fillRect(e.x + Math.random() * 28, e.y + Math.random() * 28, 4, 2); }
       return;
     }
     const fading = e.state === "fading";
-    // Corrupted slices drift sideways (wildly just before it vanishes).
+    // Corrupted slices drift sideways (wildly just before it vanishes), RGB-split edges.
     for (let i = 0; i < 4; i++) {
-      const jitter = fading ? U.rand(-5, 5) : (world.time + e.col * 7 + i * 13) % 97 < 5 ? U.rand(-3, 3) : 0;
-      ctx.fillStyle = i % 2 ? th.tileFill : U.mix(th.tileFill, HACK_GREEN, 0.12);
+      const jitter = fading ? U.rand(-5, 5) : (t + e.col * 7 + i * 13) % 97 < 5 ? U.rand(-3, 3) : 0;
+      ctx.fillStyle = i % 2 ? th.tileFill : U.mix(th.tileFill, HACK_GREEN, 0.14);
       ctx.fillRect(e.x + jitter, e.y + i * 8, 32, 8);
+      if (jitter) { ctx.fillStyle = "rgba(255,61,240,0.35)"; ctx.fillRect(e.x + jitter - 2, e.y + i * 8, 2, 8); ctx.fillStyle = "rgba(61,255,240,0.35)"; ctx.fillRect(e.x + jitter + 32, e.y + i * 8, 2, 8); }
     }
-    ctx.fillStyle = fading && world.time % 6 < 3 ? "#ff3df0" : HACK_GREEN;
+    ctx.fillStyle = fading && t % 6 < 3 ? "#ff3df0" : HACK_GREEN;
     ctx.fillRect(e.x, e.y, 32, 2);
-    ctx.fillStyle = U.rgba(HACK_GREEN, 0.5);
-    ctx.fillRect(e.x + 6, e.y + 12, 6, 2); ctx.fillRect(e.x + 18, e.y + 20, 8, 2);
+    ctx.font = "9px monospace"; ctx.fillStyle = U.rgba(HACK_GREEN, 0.55);
+    ctx.fillText(((e.col * 5 + (t >> 4)) % 2 ? "01" : "10") + ((e.row + (t >> 5)) % 2 ? "1" : "0"), e.x + 6, e.y + 18);
+    ctx.fillRect(e.x + 6, e.y + 24, 8, 2); ctx.fillRect(e.x + 18, e.y + 12, 8, 2);
   },
 });
 
@@ -341,21 +372,28 @@ registerEntity("lockedGate", {
     e.openK = U.approach(e.openK, e.open ? 1 : 0, 0.06);
   },
   draw(e, ctx, world) {
-    const h = e.h * (1 - e.openK);
-    ctx.fillStyle = "#1c1a0c";
-    ctx.fillRect(e.x - 4, e.y, 4, e.h); ctx.fillRect(e.x + e.w, e.y, 4, e.h);
+    const h = e.h * (1 - e.openK), t = world.time;
+    // Frame posts.
+    for (const px of [e.x - 5, e.x + e.w]) { ctx.beginPath(); ctx.rect(px, e.y, 5, e.h); Look.fill(ctx, e.y, e.h, "#2a2810"); }
     if (h < 2) return;
     const can = world.player.has("rootAccess");
     const col = can ? "#ffd23d" : "#ff4d6d";
-    ctx.fillStyle = "#14130a";
-    ctx.fillRect(e.x, e.y, e.w, h);
-    ctx.fillStyle = U.rgba(col, 0.5);
-    for (let y = e.y + 6; y < e.y + h - 4; y += 12) ctx.fillRect(e.x + 4, y, e.w - 8, 2);
+    // Heavy shutter: slats with highlights.
+    ctx.beginPath(); ctx.rect(e.x, e.y, e.w, h);
+    Look.fill(ctx, e.y, h, "#22200e", 0.1, 0.3);
+    for (let y = e.y + 2; y < e.y + h - 2; y += 8) {
+      ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(e.x, y + 6, e.w, 2);
+      ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fillRect(e.x, y, e.w, 1);
+    }
+    ctx.fillStyle = U.rgba(col, 0.5 + 0.2 * Math.sin(t * 0.08));
+    ctx.fillRect(e.x + 2, e.y + h - 3, e.w - 4, 2);
     // Lock glyph.
     const cy = e.y + Math.min(h / 2, 40);
+    ctx.fillStyle = "#14130a"; U.roundRect(ctx, U.cx(e) - 10, cy - 14, 20, 24, 4); ctx.fill();
     ctx.strokeStyle = col; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(U.cx(e), cy - 4, 5, Math.PI, 0); ctx.stroke();
     ctx.fillStyle = col; ctx.fillRect(U.cx(e) - 7, cy - 4, 14, 10);
-    U.glow(ctx, U.cx(e), cy, 20, col, 0.4);
+    ctx.fillStyle = "#14130a"; ctx.fillRect(U.cx(e) - 1, cy - 1, 2, 4);
+    U.glow(ctx, U.cx(e), cy, 22, col, 0.45);
   },
 });

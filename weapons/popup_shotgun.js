@@ -36,10 +36,16 @@ registerEntity("popupShot", {
   props: { transient: true, alwaysActive: true },
   init(e) { e.life = 20; e.hit = []; },
   update(e, world) { Registry.entities.playerShot.update(e, world); },
-  draw(e, ctx) {
+  draw(e, ctx, world) {
     const x = Math.round(e.x), y = Math.round(e.y);
+    // A tiny pop-up window with a motion streak.
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = "rgba(79,195,255,0.25)"; ctx.fillRect(e.vx > 0 ? x - 10 : x + 12, y + 2, 10, 5);
+    ctx.restore();
     ctx.fillStyle = "#f4f8fc"; ctx.fillRect(x, y, 12, 9);
     ctx.fillStyle = "#1e88e5"; ctx.fillRect(x, y, 12, 3);
     ctx.fillStyle = "#e53935"; ctx.fillRect(x + 9, y + 1, 2, 1);
+    ctx.fillStyle = "#b8c6d8"; ctx.fillRect(x + 2, y + 5, 6, 1);
   },
+  light(e) { return [40, "#4fc3ff", 0.6]; },
 });

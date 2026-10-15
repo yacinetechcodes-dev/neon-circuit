@@ -286,6 +286,8 @@ class Player {
     this.alive = true;
     this.squashX = 1; this.squashY = 1;
     this.trail = [];
+    this.hurtT = 0; this.spawnT = 0; this.flipT = 0;
+    this.scarf = null;
     this.runAnim = 0;
     this.warp = 0;
     if (full) {
@@ -392,7 +394,7 @@ class Player {
       this.dashing--;
       this.vx = this.dashDir * C.dashSpeed;
       this.vy = 0;
-      if (world.time % 2 === 0) this.trail.push({ x: this.x, y: this.y, life: 12 });
+      if (world.time % 2 === 0) this.trail.push({ x: this.x, y: this.y, life: 12, pose: this.pose(world) });
       world.particles.emit(U.cx(this), U.cy(this) + U.rand(-8, 8), {
         vx: -this.dashDir * 2, vy: U.rand(-0.5, 0.5), life: 14, size: 3, color: this.has("dataDash") ? "#39ff88" : "#ff3df0", shape: "square",
       });
@@ -458,6 +460,7 @@ class Player {
           this.vy = -C.doubleJumpV * s * form.jump; this.jumping = true; this.jumpBuffer = 0;
           this.squashX = 0.75; this.squashY = 1.3;
           world.particles.ring(U.cx(this), this.y + this.h, "#00f0ff", 18, 18);
+          this.flipT = 24;
           world.particles.burst(U.cx(this), this.y + this.h, 8, "#00f0ff", 2);
           sfx.play("doubleJump");
           Save.markSeen("doubleJump");
@@ -510,7 +513,9 @@ class Player {
           this.shootCool = def.cooldown;
           if (def.ammo != null) this.ammo[name]--;
           def.fire(world, this);
-          world.particles.burst(this.facing > 0 ? this.x + this.w + 4 : this.x - 4, this.y + 13, 5, def.color, 2);
+          const mx = this.facing > 0 ? this.x + this.w + 4 : this.x - 4;
+          world.particles.burst(mx, this.y + 13, 5, def.color, 2);
+          world.particles.emit(mx, this.y + 13, { shape: "glow", size: 16, life: 6, color: def.color });   // muzzle flash
           Save.markSeen("shoot");
         } else {
           this.shootCool = 10;
@@ -531,7 +536,8 @@ class Player {
     if (res.hitY) {
       if (!wasGround && this.vy * s > 3) {
         this.squashX = 1.3; this.squashY = 0.72;
-        world.particles.dust(U.cx(this), this.y + this.h, "#8fb8ff", Math.min(10, Math.floor(this.vy)));
+        world.particles.dust(U.cx(this), this.y + this.h, "#8fb8ff", Math.min(8, Math.floor(this.vy)));
+        world.particles.puff(U.cx(this), this.y + this.h, "#9fb4d8", Math.min(1.4, this.vy / 9));
         sfx.play("land");
       }
       this.vy = 0;
@@ -557,6 +563,10 @@ class Player {
     if (this.flipped && this.y < -4 * TILE) world.fallOut();
 
     // ---- cosmetics ----
+    if (this.hurtT > 0) this.hurtT--;
+    if (this.spawnT > 0) this.spawnT--;
+    if (this.flipT > 0) this.flipT--;
+    this.updateScarf();
     if (this.jetT > 0 || this.slamming)
       world.particles.emit(U.cx(this) + U.rand(-5, 5), this.slamming ? this.y : this.y + this.h, {
         vx: U.rand(-0.6, 0.6), vy: this.slamming ? -2 : 3, life: 16, size: 4, color: this.slamming ? "#ffb347" : U.pick(["#ffb347", "#ff6a1a", "#fff3c4"]), glow: true });
@@ -595,16 +605,19 @@ class Player {
 
   draw(ctx, world) {
     if (!this.alive) return;
-    if (this.invuln > 0 && world.state === "play" && Math.floor(this.invuln / 4) % 2 === 0) return;
+    // Hurt frames flicker (dim, not invisible, so you never lose sight of yourself).
+    const blink = this.invuln > 0 && world.state === "play" && Math.floor(this.invuln / 4) % 2 === 0;
 
     // Pipe ends (and the link between them).
     for (const q of [this.pipeA, this.pipeB]) {
       if (!q) continue;
       ctx.fillStyle = "#1e1e1e"; ctx.fillRect(q.x - 10, q.y - 30, 20, 30);
       ctx.fillStyle = "#8ae234"; ctx.fillRect(q.x - 12, q.y - 32, 24, 4); ctx.fillRect(q.x - 2, q.y - 26, 4, 22);
+      U.glow(ctx, q.x, q.y - 30, 26, "#8ae234", 0.4);
     }
     if (this.pipeA && this.pipeB) {
       ctx.strokeStyle = "rgba(138,226,52,0.25)"; ctx.lineWidth = 1; ctx.setLineDash([3, 6]);
+      ctx.lineDashOffset = -world.time * 0.5;
       ctx.beginPath(); ctx.moveTo(this.pipeA.x, this.pipeA.y - 32); ctx.lineTo(this.pipeB.x, this.pipeB.y - 32); ctx.stroke(); ctx.setLineDash([]);
     }
     // Kill Process target reticle.
@@ -616,82 +629,271 @@ class Player {
         ctx.beginPath(); ctx.moveTo(tx + sx * r, ty + sy * (r - 6)); ctx.lineTo(tx + sx * r, ty + sy * r); ctx.lineTo(tx + sx * (r - 6), ty + sy * r); ctx.stroke();
       }
     }
-    // Grapple rope.
+    // Grapple rope: a taut line with a glint running along it.
     if (this.hook) {
-      ctx.strokeStyle = "#c9c2ba"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(U.cx(this), U.cy(this)); ctx.lineTo(this.hook.x, this.hook.y); ctx.stroke();
+      const hx = this.hook.x, hy = this.hook.y, px = U.cx(this), py = U.cy(this) - 4;
+      ctx.strokeStyle = "#8a827a"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(hx, hy); ctx.stroke();
+      ctx.strokeStyle = "#e8e0d8"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(hx, hy); ctx.stroke();
+      const k = (world.time * 0.06) % 1;
+      U.glow(ctx, px + (hx - px) * k, py + (hy - py) * k, 10, "#ffb347", 0.8);
     }
-    // Dash afterimages.
+
+    const form = Player.FORMS[this.form] || Player.FORMS.normal;
+    const drawScale = form.draw;
+    const accent = this.sudo > 0 ? (this.sudo < 60 && world.time % 8 < 4 ? "#00f0ff" : "#fcaf3e") : this.dashing > 0 ? (this.has("dataDash") ? "#39ff88" : "#ff3df0") : this.form === "pixel" ? "#ffec27" : "#00f0ff";
+    const pose = this.pose(world);
+
+    // Dash afterimages: ghost silhouettes along the path.
     for (const t of this.trail) {
-      ctx.globalAlpha = t.life / 24;
-      ctx.fillStyle = "#ff3df0";
-      U.roundRect(ctx, t.x, t.y, this.w, this.h, 5);
-      ctx.fill();
+      ctx.save();
+      ctx.globalAlpha = (t.life / 12) * 0.45;
+      Player.drawFigure(ctx, t.x + this.w / 2, t.y + this.h, this.facing, t.pose || pose, { ghost: this.has("dataDash") ? "#39ff88" : "#ff3df0", scale: drawScale });
+      ctx.restore();
     }
-    ctx.globalAlpha = 1;
 
-    const drawScale = (Player.FORMS[this.form] || Player.FORMS.normal).draw;
-    if (drawScale !== 1) {
-      const fx = this.x + this.w / 2, fy = this.y + this.h;
-      ctx.save();
-      ctx.translate(fx, fy); ctx.scale(drawScale, drawScale); ctx.translate(-fx, -fy);
-    }
-    if (this.flipped) {
-      ctx.save();
-      ctx.translate(0, (this.y + this.h / 2) * 2);
-      ctx.scale(1, -1);
-    }
+    // Energy scarf (behind the body), in world coordinates.
+    if (this.scarf && this.form !== "mini") this.drawScarf(ctx, world, accent);
+
     const cx = this.x + this.w / 2, by = this.y + this.h;
-    const w = 24 * this.squashX, h = 30 * this.squashY;
-    const x = cx - w / 2, y = by - h;
-    const warpA = this.warp ? Math.max(0, 1 - this.warp / 70) : 1;
-    ctx.globalAlpha = warpA;
-
-    // Body glow (amber while Sudo is active).
-    U.glow(ctx, cx, by - h / 2, 34, this.sudo > 0 ? "#fcaf3e" : this.dashing > 0 ? "#ff3df0" : "#00c8ff", 0.45);
-
+    ctx.save();
+    if (this.flipped) { ctx.translate(0, (this.y + this.h / 2) * 2); ctx.scale(1, -1); }
+    let alpha = this.warp ? Math.max(0, 1 - this.warp / 70) : 1;
+    if (blink) alpha *= 0.35;
+    if (this.spawnT > 0) alpha *= 1 - this.spawnT / 30;
+    ctx.globalAlpha = alpha;
+    // Soft body glow.
+    U.glow(ctx, cx, by - 15 * drawScale, 36 * drawScale, accent, 0.4);
+    // Contact shadow on the ground.
+    if (this.onGround && !this.flipped) {
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath(); ctx.ellipse(cx, by, 11 * drawScale * this.squashX, 2.5, 0, 0, 6.28); ctx.fill();
+    }
     // Shield bubble.
     if (this.powers.shield > 0) {
       const a = this.powers.shield < 120 && Math.floor(this.powers.shield / 6) % 2 ? 0.2 : 0.55;
-      ctx.strokeStyle = U.rgba("#59a7ff", a);
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, by - h / 2, 24 + Math.sin(world.time * 0.2) * 1.5, 0, 6.28); ctx.stroke();
+      const r = 24 * Math.max(0.6, drawScale) + Math.sin(world.time * 0.2) * 1.5, sy = by - 15 * drawScale;
+      ctx.strokeStyle = U.rgba("#59a7ff", a); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, sy, r, 0, 6.28); ctx.stroke();
       ctx.fillStyle = U.rgba("#59a7ff", 0.08); ctx.fill();
+      ctx.strokeStyle = U.rgba("#cfe6ff", a * 0.8); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, sy, r - 3, -2.4 + world.time * 0.05, -1.6 + world.time * 0.05); ctx.stroke();
     }
+    Player.drawFigure(ctx, cx, by, this.facing, pose, {
+      scale: drawScale, sx: this.squashX, sy: this.squashY, accent,
+      chest: this.has("pulse") ? "#7dff4a" : this.has("dash") ? "#ff3df0" : "#2b4a7a",
+      tip: this.airJumps > 0 || this.onGround ? "#ffe14d" : "#4a4a2a",
+      hurt: this.hurtT > 0 && Math.floor(this.hurtT / 3) % 2 === 0,
+      time: world.time, jet: this.jetT > 0 || this.slamming, pixel: this.form === "pixel",
+    });
+    ctx.restore();
+    // Respawn: a column of light that the body materialises in.
+    if (this.spawnT > 0) {
+      const k = this.spawnT / 30;
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createLinearGradient(0, by - 140, 0, by);
+      g.addColorStop(0, U.rgba(accent, 0)); g.addColorStop(1, U.rgba(accent, 0.5 * k));
+      ctx.fillStyle = g; ctx.fillRect(cx - 14 * k - 4, by - 140, 28 * k + 8, 140);
+      ctx.restore();
+    }
+  }
 
-    // Feet / treads.
-    const step = this.onGround && Math.abs(this.vx) > 0.5 ? Math.sin(this.runAnim * 3) * 2 : 0;
-    ctx.fillStyle = "#1b2a4a";
-    ctx.fillRect(x + 3, by - 5 + step, 7, 5 - step);
-    ctx.fillRect(x + w - 10, by - 5 - step, 7, 5 + step);
+  /** The current animation pose (joint angles, radians; 0 = straight down,
+   *  positive = toward the facing direction). Purely cosmetic. */
+  pose(world) {
+    const t = world.time;
+    const P = { lean: 0, bob: 0, hipF: 0.1, kneeF: 0.15, hipB: -0.1, kneeB: 0.15, shF: 0.15, elF: 0.4, shB: -0.15, elB: 0.4, head: 0 };
+    const s = this.flipped ? -1 : 1, vy = this.vy * s;
+    if (this.hurtT > 0) {
+      Object.assign(P, { lean: -0.45, hipF: 0.5, kneeF: 0.6, hipB: -0.2, kneeB: 0.8, shF: -2.3, elF: 0.6, shB: -1.9, elB: 0.8, head: -0.2 });
+    } else if (this.hook) {
+      Object.assign(P, { lean: 0.1, hipF: 0.4, kneeF: 0.9, hipB: -0.2, kneeB: 0.5, shF: -2.8, elF: 0.1, shB: -2.5, elB: 0.2 });
+    } else if (this.slamming) {
+      Object.assign(P, { lean: 0.15, hipF: -1.4, kneeF: 2.2, hipB: -1.1, kneeB: 2.0, shF: -2.6, elF: 0.4, shB: -2.4, elB: 0.4 });
+    } else if (this.dashing > 0) {
+      Object.assign(P, { lean: 0.75, hipF: 0.6, kneeF: 0.6, hipB: 1.3, kneeB: 0.3, shF: 1.4, elF: 0.3, shB: 1.7, elB: 0.2, head: -0.3 });
+    } else if (this.wallSliding) {
+      const k = Math.sin(t * 0.3) * 0.05;
+      Object.assign(P, { lean: -0.1, hipF: -0.9, kneeF: 1.5, hipB: 0.2, kneeB: 0.6, shF: -2.5 + k, elF: 0.5, shB: -0.6, elB: 0.9, head: -0.15 });
+    } else if (!this.onGround) {
+      if (vy < -1) {
+        Object.assign(P, { lean: 0.1, hipF: -0.95, kneeF: 1.7, hipB: 0.35, kneeB: 0.7, shF: -2.3, elF: 0.3, shB: 0.9, elB: 0.6 });
+        if (this.flipT > 0) P.lean = (1 - this.flipT / 24) * Math.PI * 2;   // a flip on the double jump
+      } else {
+        const fl = Math.sin(t * 0.35) * 0.2;
+        Object.assign(P, { lean: 0.05, hipF: -0.3, kneeF: 0.4, hipB: 0.35, kneeB: 0.5, shF: -1.4 + fl, elF: 0.5, shB: -1.7 - fl, elB: 0.5, head: 0.1 });
+      }
+    } else if (Math.abs(this.vx) > 0.5) {
+      const ph = this.runAnim * 1.6, sp = U.clamp(Math.abs(this.vx) / 4.2, 0.4, 1.3);
+      P.lean = 0.2 * sp;
+      P.bob = -Math.abs(Math.sin(ph)) * 1.6 * sp;
+      P.hipF = Math.sin(ph) * 0.95 * sp; P.kneeF = 0.25 + Math.max(0, -Math.cos(ph)) * 1.3 * sp;
+      P.hipB = -Math.sin(ph) * 0.95 * sp; P.kneeB = 0.25 + Math.max(0, Math.cos(ph)) * 1.3 * sp;
+      P.shF = -Math.sin(ph) * 0.9 * sp; P.elF = 0.9; P.shB = Math.sin(ph) * 0.9 * sp; P.elB = 0.9;
+    } else {
+      // Idle: breathing, a slow look around.
+      const b = Math.sin(t * 0.06);
+      P.bob = b * 0.7; P.shF = 0.12 + b * 0.05; P.shB = -0.12 - b * 0.05;
+      P.head = Math.sin(t * 0.013) > 0.85 ? 0.12 : 0;
+    }
+    if (this.shootCool > (Player.C.shootCool - 6) && !this.dashing) { P.shF = -1.5; P.elF = 0; } // aim the front arm
+    return P;
+  }
 
-    // Chassis.
-    ctx.fillStyle = "#14203c";
-    U.roundRect(ctx, x, y, w, h - 4, 6);
-    ctx.fill();
-    ctx.strokeStyle = this.sudo > 0 ? (this.sudo < 60 && world.time % 8 < 4 ? "#00f0ff" : "#fcaf3e") : this.dashing > 0 ? "#ff3df0" : "#00f0ff";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+  /** Energy scarf: a short chain that trails behind the neck (cosmetic). */
+  updateScarf() {
+    const n = 7, seg = 3.4 * ((Player.FORMS[this.form] || {}).draw || 1);
+    const s = this.flipped ? -1 : 1;
+    const ax = this.x + this.w / 2 - this.facing * 3, ay = this.flipped ? this.y + this.h * 0.3 : this.y + this.h * 0.32;
+    if (!this.scarf || this.scarf.length !== n) this.scarf = Array.from({ length: n }, (_, i) => ({ x: ax - this.facing * i * seg, y: ay }));
+    const sc = this.scarf;
+    sc[0].x = ax; sc[0].y = ay;
+    for (let i = 1; i < n; i++) {
+      const p = sc[i], q = sc[i - 1];
+      p.y += 0.55 * s; p.x -= this.vx * 0.06; p.x += Math.sin(this.runAnim * 2 + i) * 0.15;
+      const dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy) || 1;
+      p.x = q.x + (dx / d) * seg; p.y = q.y + (dy / d) * seg;
+    }
+  }
+  drawScarf(ctx, world, accent) {
+    const sc = this.scarf;
+    ctx.save();
+    ctx.lineCap = "round";
+    const col = this.dashing > 0 ? accent : "#ff3df0";
+    for (let i = 1; i < sc.length; i++) {
+      ctx.strokeStyle = U.rgba(col, 0.95 - i * 0.1);
+      ctx.lineWidth = Math.max(1, 4.2 - i * 0.5);
+      ctx.beginPath(); ctx.moveTo(sc[i - 1].x, sc[i - 1].y); ctx.lineTo(sc[i].x, sc[i].y); ctx.stroke();
+    }
+    U.glow(ctx, sc[sc.length - 1].x, sc[sc.length - 1].y, 10, col, 0.5);
+    ctx.restore();
+  }
 
-    // Visor strip (glows; shifts toward facing direction).
-    const vx = x + 4 + (this.facing > 0 ? 3 : 0), vy = y + 7;
-    ctx.fillStyle = "#00f0ff";
-    ctx.fillRect(vx, vy, w - 11, 5);
-    U.glow(ctx, vx + (w - 11) / 2, vy + 2, 14, "#00f0ff", 0.8);
+  /**
+   * Draw the robot from shapes at feet position (cx, by). No face: a helmet
+   * with a glowing visor band. o: { scale, sx, sy, accent, chest, tip, hurt,
+   * time, jet, ghost (single-colour silhouette), pixel }
+   */
+  static drawFigure(ctx, cx, by, facing, P, o = {}) {
+    const f = facing >= 0 ? 1 : -1, sc = o.scale || 1;
+    const accent = o.accent || "#00f0ff";
+    const ghost = o.ghost;
+    const body = ghost || (o.hurt ? "#5a1a2a" : "#16233f");
+    const plate = ghost || (o.hurt ? "#ff4d6d" : "#2a3f6e");
+    const dark = ghost || "#0c1428";
+    ctx.save();
+    ctx.translate(cx, by);
+    ctx.scale(sc * (o.sx || 1), sc * (o.sy || 1));
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    const lean = P.lean || 0;
+    // A full flip spins the whole body around its middle.
+    if (Math.abs(lean) > 1.2) { ctx.translate(0, -14); ctx.rotate(lean * f); ctx.translate(0, 14); }
+    const tl = Math.abs(lean) > 1.2 ? 0 : lean;
+    const hipY = -11 + (P.bob || 0);
+    // Joint helper: angle 0 = down, positive = toward facing.
+    const pt = (x, y, a, l) => [x + Math.sin(a) * l * f, y + Math.cos(a) * l];
+    const limb = (x, y, a1, l1, a2, l2, w, col, leg) => {
+      const [kx, ky] = pt(x, y, a1, l1);
+      const [ex, ey] = pt(kx, ky, a1 + a2 * (leg ? -1 : 1), l2);
+      ctx.strokeStyle = col; ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(kx, ky); ctx.lineTo(ex, ey); ctx.stroke();
+      return [ex, ey];
+    };
+    // Back limbs (darker, behind the body).
+    const [bfx, bfy] = limb(-1 * f, hipY, P.hipB, 5.6, P.kneeB, 5.6, 4.2, dark, true);
+    if (!ghost) { ctx.fillStyle = dark; U.roundRect(ctx, bfx - 3.5 + f, bfy - 2, 7, 3.5, 1.5); ctx.fill(); }
+    const sh = pt(0, hipY, Math.PI + tl, 8.5);
+    limb(sh[0] - f, sh[1], P.shB, 4.6, P.elB, 4.4, 3.4, dark);
+    // Backpack with a thruster light.
+    const bp = pt(-3.5 * f, hipY, Math.PI + tl, 6);
+    ctx.save(); ctx.translate(bp[0], bp[1]); ctx.rotate(tl * f);
+    ctx.fillStyle = body; U.roundRect(ctx, -2.5 - 2 * f, -4, 5, 8, 1.5); ctx.fill();
+    if (!ghost) {
+      ctx.fillStyle = o.jet ? "#ffb347" : U.rgba(accent, 0.6);
+      ctx.fillRect(-1.5 - 2 * f, 3, 3, 2);
+      if (o.jet) U.glow(ctx, -2 * f, 6, 12, "#ffb347", 0.9);
+    }
+    ctx.restore();
+    // Torso.
+    ctx.save(); ctx.translate(0, hipY); ctx.rotate(tl * f);
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.lineTo(6.5, -9.5); ctx.lineTo(-6.5, -9.5); ctx.closePath(); ctx.fill();
+    if (!ghost) {
+      ctx.strokeStyle = accent; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = plate; ctx.fillRect(-5.5, -9.5, 11, 3);                 // shoulder plate
+      ctx.fillStyle = o.chest || "#2b4a7a"; ctx.fillRect(-1.5 + f * 1.5, -6, 3, 3); // chest light
+      ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fillRect(-4, -2.5, 8, 1);
+      ctx.fillStyle = dark; ctx.fillRect(-5, -1.5, 10, 1.5);                   // belt
+    }
+    ctx.restore();
+    // Front leg.
+    const [ffx, ffy] = limb(1 * f, hipY, P.hipF, 5.6, P.kneeF, 5.6, 4.6, body, true);
+    if (!ghost) {
+      ctx.fillStyle = body; U.roundRect(ctx, ffx - 3.5 + f, ffy - 2, 7.5, 3.8, 1.5); ctx.fill();
+      ctx.fillStyle = accent; ctx.fillRect(ffx - 3 + f, ffy + 1.2, 6.5, 0.9);   // sole light
+    }
+    // Helmet.
+    const hd = pt(0, hipY, Math.PI + tl, 15.5);
+    ctx.save(); ctx.translate(hd[0], hd[1]); ctx.rotate((tl + (P.head || 0)) * f);
+    ctx.fillStyle = body;
+    if (o.pixel) ctx.fillRect(-7, -6, 14, 12); else { U.roundRect(ctx, -7.5, -6.5, 15, 13, 5); ctx.fill(); }
+    if (!ghost) {
+      ctx.strokeStyle = accent; ctx.lineWidth = 1.4;
+      if (o.pixel) ctx.strokeRect(-7, -6, 14, 12); else ctx.stroke();
+      // Visor band (no face): glows and sits toward the facing side.
+      ctx.fillStyle = "#03101c"; ctx.fillRect(-6 + f, -2.5, 12, 5);
+      ctx.fillStyle = accent; ctx.fillRect(-4 + f * 2, -1.5, 8, 2.6);
+      const sweep = ((o.time || 0) % 240) / 240;
+      if (sweep < 0.12) { ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fillRect(-4 + f * 2 + (sweep / 0.12) * 7, -1.5, 1.2, 2.6); }
+      U.glow(ctx, f * 2, -0.5, 12, accent, 0.7);
+      // Ear fin and antenna (its tip shows the air jump).
+      ctx.fillStyle = plate; ctx.fillRect(-f * 7.5 - (f > 0 ? 1 : 0), -3, 2, 6);
+      ctx.strokeStyle = plate; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(-f * 3, -6.5); ctx.lineTo(-f * 6, -12); ctx.stroke();
+      ctx.fillStyle = o.tip || "#ffe14d"; ctx.fillRect(-f * 6 - 1.5, -13.5, 3, 3);
+    }
+    ctx.restore();
+    // Front arm (over the torso) with a hand light.
+    const [hx, hy] = limb(sh[0] + f, sh[1], P.shF, 4.6, P.elF, 4.4, 3.8, plate);
+    if (!ghost) { ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(hx, hy, 1.6, 0, 6.28); ctx.fill(); }
+    ctx.restore();
+  }
 
-    // Chest light shows upgrades: lime = pulse, magenta = dash.
-    ctx.fillStyle = this.has("pulse") ? "#7dff4a" : this.has("dash") ? "#ff3df0" : "#2b4a7a";
-    ctx.fillRect(cx - 2, y + h - 14, 4, 4);
-
-    // Antenna light.
-    ctx.strokeStyle = "#2b4a7a";
-    ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx - this.facing * 3, y - 6); ctx.stroke();
-    ctx.fillStyle = this.airJumps > 0 || this.onGround ? "#ffe14d" : "#4a4a2a";
-    ctx.fillRect(cx - this.facing * 3 - 2, y - 8, 4, 4);
-
-    ctx.globalAlpha = 1;
-    if (this.flipped) ctx.restore();
-    if (drawScale !== 1) ctx.restore();
+  // ---- death: the body breaks apart into glowing pieces ----
+  static deathPieces(p, world) {
+    const cx = U.cx(p), cy = U.cy(p);
+    const parts = [["helmet", 15, 13], ["torso", 13, 10], ["limb", 4, 11], ["limb", 4, 11], ["limb", 4, 10], ["limb", 4, 10], ["pack", 5, 8], ["bolt", 3, 3], ["bolt", 3, 3]];
+    return {
+      world, t: 0,
+      pieces: parts.map(([kind, w, h], i) => {
+        const a = -Math.PI / 2 + (i - parts.length / 2) * 0.45 + U.rand(-0.2, 0.2), s = U.rand(3, 7);
+        return { kind, w, h, x: cx, y: cy - (kind === "helmet" ? 8 : 0), vx: Math.cos(a) * s + p.vx * 0.3, vy: Math.sin(a) * s - 2, rot: 0, vr: U.rand(-0.35, 0.35) };
+      }),
+    };
+  }
+  static updateDeath(fx) {
+    fx.t++;
+    for (const q of fx.pieces) {
+      q.vy += 0.32; q.vx *= 0.99; q.x += q.vx; q.y += q.vy; q.rot += q.vr;
+      if (fx.t % 3 === 0 && fx.t < 50 && fx.world) fx.world.particles.emit(q.x, q.y, { life: 14, size: 2, color: "#00f0ff", shape: "spark", vx: -q.vx * 0.2, vy: -q.vy * 0.2 });
+    }
+  }
+  static drawDeath(ctx, fx) {
+    const a = Math.max(0, 1 - fx.t / 70);
+    if (a <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = a;
+    for (const q of fx.pieces) {
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.rot);
+      ctx.fillStyle = q.kind === "limb" ? "#2a3f6e" : "#16233f";
+      U.roundRect(ctx, -q.w / 2, -q.h / 2, q.w, q.h, Math.min(3, q.w / 2)); ctx.fill();
+      ctx.strokeStyle = "#00f0ff"; ctx.lineWidth = 1.2; ctx.stroke();
+      if (q.kind === "helmet") { ctx.fillStyle = "#00f0ff"; ctx.fillRect(-4, -1.5, 8, 2.6); }
+      ctx.restore();
+      U.glow(ctx, q.x, q.y, 12, "#00f0ff", a * 0.5);
+    }
+    ctx.restore();
   }
 }
 

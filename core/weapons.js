@@ -92,32 +92,37 @@ registerEntity("playerShot", {
     }
   },
   draw(e, ctx, world) {
-    const cx = U.cx(e), cy = U.cy(e);
+    const cx = U.cx(e), cy = U.cy(e), t = world.time;
     switch (e.kind) {
       case "arc": {
-        U.glow(ctx, cx, cy, 30, e.color, 0.9);
-        ctx.fillStyle = "#e8fdff";
-        ctx.beginPath(); ctx.arc(cx, cy, e.w / 2 - 2, 0, 6.28); ctx.fill();
-        // Crackling arcs around the orb.
+        // A ball of lightning: comet tail, crackling arcs, white-hot core.
+        Look.comet(ctx, cx, cy, e.vx, e.vy, e.w / 2 - 3, e.color, "#e8fdff");
+        ctx.save(); ctx.globalCompositeOperation = "lighter";
         ctx.strokeStyle = e.color; ctx.lineWidth = 1.5;
         ctx.beginPath();
-        for (let i = 0; i < 3; i++) {
-          const a = world.time * 0.4 + i * 2.1 + e.t0;
-          ctx.moveTo(cx + Math.cos(a) * 6, cy + Math.sin(a) * 6);
-          ctx.lineTo(cx + Math.cos(a + 0.5) * (e.w * 0.8), cy + Math.sin(a + 0.5) * (e.w * 0.8));
+        for (let i = 0; i < 4; i++) {
+          const a = t * 0.4 + i * 1.57 + e.t0;
+          let px = cx + Math.cos(a) * 5, py = cy + Math.sin(a) * 5;
+          ctx.moveTo(px, py);
+          for (let k = 1; k <= 3; k++) { px = cx + Math.cos(a + k * 0.25) * (5 + k * 3.5) + U.rand(-1.5, 1.5); py = cy + Math.sin(a + k * 0.25) * (5 + k * 3.5) + U.rand(-1.5, 1.5); ctx.lineTo(px, py); }
         }
         ctx.stroke();
+        ctx.restore();
         break;
       }
       case "pellet":
-        U.glow(ctx, cx, cy, 12, e.color, 0.8);
-        ctx.fillStyle = "#fff1cc";
-        ctx.beginPath(); ctx.arc(cx, cy, 3, 0, 6.28); ctx.fill();
+        Look.comet(ctx, cx, cy, e.vx, e.vy, 2.6, e.color, "#fff1cc");
         break;
-      default: // "pulse"
-        U.glow(ctx, cx, cy, 16, e.color, 0.9);
-        ctx.fillStyle = "#e6ffd6";
-        ctx.fillRect(cx - 7, cy - 2, 14, 4);
+      default: { // "pulse": an energy bolt with a stretched tail
+        const d = U.sign(e.vx) || 1;
+        ctx.save(); ctx.globalCompositeOperation = "lighter";
+        const g = ctx.createLinearGradient(cx - d * 24, 0, cx + d * 6, 0);
+        g.addColorStop(0, U.rgba(e.color, 0)); g.addColorStop(1, U.rgba(e.color, 0.8));
+        ctx.fillStyle = g; ctx.fillRect(Math.min(cx - d * 24, cx + d * 6), cy - 3, 30, 6);
+        U.glow(ctx, cx, cy, 18, e.color, 0.9);
+        ctx.restore();
+        ctx.fillStyle = "#f2ffe6"; U.roundRect(ctx, cx - 7, cy - 2.5, 14, 5, 2.5); ctx.fill();
+      }
     }
   },
 });

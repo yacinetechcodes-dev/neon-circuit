@@ -51,14 +51,25 @@ registerEntity("rocketShot", {
       }
     }
   },
-  draw(e, ctx) {
-    const d = U.sign(e.vx) || 1, x = Math.round(e.x), y = Math.round(e.y);
-    ctx.fillStyle = "#c9c2ba"; ctx.fillRect(x + 2, y + 1, 11, 6);
+  draw(e, ctx, world) {
+    const d = U.sign(e.vx) || 1, x = e.x, y = e.y, cy = U.cy(e), t = world.time;
+    // Exhaust flame and a smoke trail.
+    const back = d > 0 ? x : x + e.w;
+    Look.thruster(ctx, back, cy, -d, 0, 14 + Math.min(10, Math.abs(e.vx)), "#ffb347", t);
+    if (Game.state === "play") world.particles.emit(back - d * 4, cy + U.rand(-1, 1), { vx: -d * U.rand(0.2, 0.8), vy: U.rand(-0.3, 0.1), drag: 0.95, life: 26, size: 3, grow: 0.18, color: "#6a5e58", shape: "smoke", alpha: 0.5 });
+    // Body: gradient casing, nose cone, fins, stripe.
+    ctx.beginPath(); ctx.rect(x + 2, y + 1, 11, 6);
+    Look.fill(ctx, y + 1, 6, "#b8b0a8", 0.3, 0.35);
     ctx.fillStyle = "#ff6a1a";
-    if (d > 0) { ctx.fillRect(x + 13, y + 2, 3, 4); ctx.fillRect(x, y, 3, 8); }
-    else { ctx.fillRect(x, y + 2, 3, 4); ctx.fillRect(x + 13, y, 3, 8); }
-    U.glow(ctx, d > 0 ? x : x + 16, y + 4, 14, "#ffb347", 0.8);
+    ctx.beginPath();
+    if (d > 0) { ctx.moveTo(x + 13, y + 1); ctx.lineTo(x + 17, y + 4); ctx.lineTo(x + 13, y + 7); }
+    else { ctx.moveTo(x + 3, y + 1); ctx.lineTo(x - 1, y + 4); ctx.lineTo(x + 3, y + 7); }
+    ctx.fill();
+    ctx.fillStyle = "#7a2a10";
+    if (d > 0) { ctx.fillRect(x, y - 1, 4, 3); ctx.fillRect(x, y + 6, 4, 3); } else { ctx.fillRect(x + 12, y - 1, 4, 3); ctx.fillRect(x + 12, y + 6, 4, 3); }
+    ctx.fillStyle = "#ff6a1a"; ctx.fillRect(x + 7, y + 1, 2, 6);
   },
+  light(e) { return [70, "#ffb347", 0.9]; },
 });
 
 // Expanding fire ring — purely visual.
@@ -69,9 +80,13 @@ registerEntity("rocketBlast", {
   update(e) { if (e.t > 18) e.dead = true; },
   draw(e, ctx) {
     const k = e.t / 18, cx = U.cx(e), cy = U.cy(e), r = (e.w / 2) * (0.35 + k * 0.65);
+    ctx.save();
     ctx.globalAlpha = 1 - k;
-    ctx.fillStyle = U.rgba("#ffb347", 0.35); ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.28); ctx.fill();
-    ctx.strokeStyle = "#ff6a1a"; ctx.lineWidth = 6; ctx.stroke();
-    ctx.globalAlpha = 1;
+    const g = ctx.createRadialGradient(cx, cy, r * 0.1, cx, cy, r);
+    g.addColorStop(0, "rgba(255,240,200,0.9)"); g.addColorStop(0.4, "rgba(255,150,40,0.55)"); g.addColorStop(1, "rgba(255,90,20,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.28); ctx.fill();
+    ctx.strokeStyle = "#ff6a1a"; ctx.lineWidth = 6 * (1 - k) + 1; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.28); ctx.stroke();
+    ctx.restore();
   },
+  light(e) { return [e.w * 1.2, "#ffb347", 1.4 * (1 - e.t / 18)]; },
 });

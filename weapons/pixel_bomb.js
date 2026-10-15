@@ -43,6 +43,9 @@ registerEntity("pixelBombShot", {
     if (fx) { fx.w = fx.h = e.radius * 2; }
     world.particles.burst(cx, cy, 24, "#ffa300", 6, { shape: "square" });
     world.particles.burst(cx, cy, 12, "#ffec27", 4, { shape: "square" });
+    world.particles.emit(cx, cy, { shape: "glow", size: e.radius, life: 12, color: "#ffec27" });
+    world.flash(cx, cy, e.radius * 3, "#ffa300", 16);
+    world.hitStop = Math.max(world.hitStop || 0, 2);
     world.camera.shake(5);
     sfx.play("bomb");
   },
@@ -59,12 +62,17 @@ registerEntity("pixelBombShot", {
     if (e.y > world.ph + 50) e.dead = true;
   },
   draw(e, ctx, world) {
-    const x = Math.round(e.x), y = Math.round(e.y);
+    const x = Math.round(e.x), y = Math.round(e.y), t = world.time;
+    const blink = Math.floor(t / Math.max(2, 6 - e.bounces * 1.5)) % 2;
     ctx.fillStyle = "#1d2b53"; ctx.fillRect(x, y + 2, 14, 12);
     ctx.fillStyle = "#ffa300"; ctx.fillRect(x + 2, y + 4, 10, 8);
+    ctx.fillStyle = "#ffec27"; ctx.fillRect(x + 2, y + 4, 10, 2);
     ctx.fillStyle = "#fff1e8"; ctx.fillRect(x + 6, y - 2, 2, 4);
-    if (Math.floor(world.time / 4) % 2) { ctx.fillStyle = "#ff004d"; ctx.fillRect(x + 5, y - 5, 4, 4); }
+    // Fuse spark: blinks faster with every bounce.
+    if (blink) { ctx.fillStyle = "#ff004d"; ctx.fillRect(x + 5, y - 5, 4, 4); U.glow(ctx, x + 7, y - 3, 10, "#ff004d", 0.8); }
+    if (t % 3 === 0 && Game.state === "play") world.particles.emit(x + 7, y - 3, { vx: U.rand(-1, 1), vy: U.rand(-1.5, -0.5), life: 10, size: 2, color: "#ffec27", shape: "square" });
   },
+  light(e) { return [50, "#ffa300", 0.7]; },
 });
 
 // Expanding square ring — purely visual.
@@ -75,9 +83,15 @@ registerEntity("bombBlast", {
   update(e) { if (e.t > 16) e.dead = true; },
   draw(e, ctx) {
     const k = e.t / 16, cx = U.cx(e), cy = U.cy(e), r = (e.w / 2) * (0.4 + k * 0.6);
+    const snap = (v) => Math.round(v / 4) * 4;
     ctx.globalAlpha = 1 - k;
+    ctx.fillStyle = U.rgba("#ffa300", 0.25 * (1 - k)); ctx.fillRect(snap(cx - r), snap(cy - r), snap(r * 2), snap(r * 2));
     ctx.strokeStyle = "#ffec27"; ctx.lineWidth = 8;
-    ctx.strokeRect(Math.round((cx - r) / 4) * 4, Math.round((cy - r) / 4) * 4, Math.round(r * 2 / 4) * 4, Math.round(r * 2 / 4) * 4);
+    ctx.strokeRect(snap(cx - r), snap(cy - r), snap(r * 2), snap(r * 2));
+    ctx.strokeStyle = "#ff004d"; ctx.lineWidth = 4;
+    const r2 = r * 0.6;
+    ctx.strokeRect(snap(cx - r2), snap(cy - r2), snap(r2 * 2), snap(r2 * 2));
     ctx.globalAlpha = 1;
   },
+  light(e) { return [e.w, "#ffa300", 1.2 * (1 - e.t / 16)]; },
 });
