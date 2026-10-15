@@ -379,8 +379,12 @@ class World {
     return U.overlap(e, { x: c.x - margin, y: c.y - margin, w: VIEW_W + margin * 2, h: VIEW_H + margin * 2 });
   }
 
+  /** Is a boss that locks the exit still alive? Only the world's main boss
+   *  (worldDef.boss.entity) locks it; mini-bosses (e.g. the Warden Mk-II
+   *  before the Mainframe) only close their own arena. */
   bossesAlive() {
-    return this.entities.some((e) => e.isBoss && !e.dead);
+    const main = this.worldDef && this.worldDef.boss && this.worldDef.boss.entity;
+    return this.entities.some((e) => e.isBoss && !e.dead && (!main || e.name === main));
   }
 
   /** Called by a boss when it wakes up. arena = {x,y,w,h} in pixels. */

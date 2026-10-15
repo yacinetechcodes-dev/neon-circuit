@@ -7,7 +7,7 @@ registerWorld({
   levels: ["level01.js", "level02.js", "level03.js", "level04.js", "level05.js"],
   abilities: ["doubleJump", "dash", "pulse", "hpUp"],
   enemies: ["patrolBot", "drone", "turret", "charger", "sentinel", "spiker", "warden"],
-  hazards: ["spike", "laser", "electric", "crusher", "movingPlatform", "fallingPlatform", "gravityField"],
+  hazards: ["spike", "laser", "electric", "crusher", "movingPlatform", "fallingPlatform", "gravityField", "dashRefill"],
   boss: { level: "level05.js", entity: "mainframe" },
   weapons: { start: [], rewards: { "level04.js": ["arcCannon"], "level05.js": ["scatterBurst"] } },
 });

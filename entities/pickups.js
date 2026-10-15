@@ -304,11 +304,12 @@ function PowerIcon(ctx, kind, cx, cy, color) {
  *   name   shown on unlock and in the Codex      desc  what it does (one line)
  *   how    how to use it ({jump}-style key tokens, see UI.keys)
  *   action input action that triggers it (only abilities you press)
+ *   weapon a weapon this ability gives (e.g. Pulse Shot → the Pulse Blaster)
  *   label  its on-screen touch button              world  world that teaches it */
 const UPGRADE_INFO = {
   doubleJump: { name: "DOUBLE JUMP", desc: "Jump again in mid-air.", how: "{jump} in mid-air", world: 1 },
   dash: { name: "DASH", hud: "DASH", desc: "A quick burst sideways; dash into enemies to hit them.", how: "{dash}", world: 1 },
-  pulse: { name: "PULSE SHOT", desc: "Your first blaster.", how: "{shoot}", world: 1 },
+  pulse: { name: "PULSE SHOT", desc: "Your first blaster.", how: "{shoot}", world: 1, weapon: "pulseBlaster" },
   hpUp: { name: "ARMOR", desc: "+1 max health.", how: "always on", world: 1 },
 };
 
@@ -322,6 +323,8 @@ registerEntity("upgrade", {
   onTouch(e, world, p) {
     p.upgrades.add(e.kind);
     if (e.kind === "hpUp") { p.maxHp++; p.hp = p.maxHp; }
+    const gift = UPGRADE_INFO[e.kind] && UPGRADE_INFO[e.kind].weapon;
+    if (gift) { p.giveWeapon(gift, true); Save.addWeapon(gift); }
     world.pickedUpgrades = (world.pickedUpgrades || []).concat(e.kind);
     sfx.play("powerup");
     e.dead = true;

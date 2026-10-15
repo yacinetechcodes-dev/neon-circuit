@@ -117,7 +117,7 @@ Grep Beam: an instant, piercing beam straight ahead (shields stop it unless Sudo
 | Move | ← → / A D | ◀ ▶ |
 | Jump (hold for higher) | Space / ↑ / W / Z | JUMP |
 | Drop through thin platform | ↓ + Jump | ▼ + JUMP |
-| Dash (from level 2) | Shift / X | DASH |
+| Dash (from World 1 level 3) | Shift / X | DASH |
 | Fire weapon | F / C / J | FIRE |
 | Switch weapon | Q / E / 1-9 | WPN |
 | Pause | Esc / P | II |

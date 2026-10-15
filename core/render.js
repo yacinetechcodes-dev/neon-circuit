@@ -342,7 +342,7 @@ class Background {
     if (this.style === "pixel") return; // 8-bit look: no smooth grid or motes
     if (this.style === "term") {
       // Process monitor: live-looking CPU / MEM bars in a panel.
-      const pw = 280, ph = 150, px = VIEW_W - pw - 30, py = 80;
+      const pw = 280, ph = 150, px = VIEW_W - pw - 200, py = 170; // clear of the HUD and mini map
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       ctx.fillStyle = "rgba(20,20,20,0.75)"; ctx.fillRect(px, py, pw, ph);
       ctx.strokeStyle = "rgba(252,175,62,0.35)"; ctx.lineWidth = 1; ctx.strokeRect(px + 0.5, py + 0.5, pw, ph);

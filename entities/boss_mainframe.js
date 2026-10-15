@@ -5,6 +5,8 @@
  *   1  aimed bursts + summons drones
  *   2  laser columns (telegraphed) + radial bullet rings
  *   3  everything, faster
+ * Repair capsules drop when the fight starts, at each phase change and
+ * every ~14 s.
  * After each attack string it sinks to the floor and its shield opens
  * ("CORE EXPOSED") — stomp it, shoot it or dash into it. While exposed it
  * is harmless to touch.
@@ -40,7 +42,14 @@ registerEntity("mainframe", {
     e.hp = e.maxHp;
     e.mode = "sleep"; e.timer = 0; e.step = 0;
     e.phase = 1; e.open = false;
-    e.spin = 0;
+    e.spin = 0; e.healT = 0;
+  },
+  /** Repair capsule somewhere on the arena floor (one at a time). */
+  dropHealth(e, world) {
+    if (world.entities.some((o) => o.bossDrop && !o.dead)) return;
+    const x = e.arena.x + 3 * TILE + Math.random() * (e.arena.w - 6 * TILE);
+    const h = world.spawn("powerup", x, e.floorY - 40, {}, "health");
+    if (h) { h.transient = true; h.bossDrop = true; world.particles.ring(U.cx(h), U.cy(h), "#ff4d6d", 26); }
   },
 
   pattern(e) {
@@ -77,6 +86,8 @@ registerEntity("mainframe", {
     const cx = U.cx(e), cy = U.cy(e);
     e.spin += e.open ? 0.005 : 0.03 * fast;
     e.hurts = !(e.mode === "expose" || e.mode === "sleep" || e.mode === "dying");
+    // Health pickups during the fight: one every ~14 s.
+    if (!["sleep", "intro", "dying"].includes(e.mode) && ++e.healT >= 840) { e.healT = 0; this.dropHealth(e, world); }
 
     switch (e.mode) {
       case "sleep":
@@ -87,7 +98,7 @@ registerEntity("mainframe", {
         return;
       case "intro":
         if (e.timer % 8 === 0) world.particles.ring(cx, cy, "#ff3df0", 60 + (120 - e.timer), 24);
-        if (--e.timer <= 0) { e.mode = "rest"; e.timer = 30; }
+        if (--e.timer <= 0) { e.mode = "rest"; e.timer = 30; this.dropHealth(e, world); }
         return;
       case "rest":
         this.drift(e, this.hoverX(e, world), e.hoverY);
@@ -210,6 +221,7 @@ registerEntity("mainframe", {
       e.open = false;
       for (const o of world.entities) if (o.name === "bullet") o.dead = true;
       world.banner = { text: `PHASE ${newPhase}`, sub: "", t: 100, max: 100, color: "#ff3df0" };
+      this.dropHealth(e, world); e.healT = 0;
     }
     return true;
   },

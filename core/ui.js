@@ -92,7 +92,7 @@ const UI = {
     }
 
     // Level name + time.
-    this.text(ctx, world.def.name.toUpperCase(), VIEW_W / 2, 30, { size: 14, align: "center", color: U.rgba(th.accent, 0.9) });
+    this.text(ctx, world.def.name.toUpperCase(), VIEW_W / 2, 30, { size: 14, align: "center", color: U.mix(th.accent, "#ffffff", 0.45), glow: "#000000" });
     this.panel(ctx, VIEW_W - 132, 12, 120, 34, th.accent, 0.6);
     this.text(ctx, U.fmtTime(world.levelTime / FPS), VIEW_W - 72, 35, { size: 15, align: "center" });
 

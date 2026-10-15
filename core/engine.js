@@ -160,6 +160,8 @@ const Game = {
     };
     for (let i = 0; i < wi; i++) rewards(Registry.worlds[i], Infinity);
     rewards(Registry.worlds[wi], li);
+    // Abilities that come with a weapon (Pulse Shot → Pulse Blaster).
+    for (const a of this.abilitiesFor(wi, li)) { const g = UPGRADE_INFO[a] && UPGRADE_INFO[a].weapon; if (g) ws.add(g); }
     return [...ws];
   },
 

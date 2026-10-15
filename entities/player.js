@@ -64,10 +64,11 @@ class Player {
     for (const o of world.entities) if (o.name === "placedBlock") o.dead = true; // one at a time
     const b = world.spawn("placedBlock", cell.x, cell.y, {});
     if (!b) return;
-    // Mid-air: land on it straight away.
-    if (U.overlap(this, b)) {
+    // Mid-air: land on it straight away (the block appears under your feet,
+    // so you never get pushed off its side).
+    if (!this.onGround) {
       const top = { x: this.x, y: cell.y - this.h, w: this.w, h: this.h };
-      if (!Physics.bodyBlocked(world, top, false)) { this.y = top.y; this.vy = 0; }
+      if (!Physics.bodyBlocked(world, top, false)) { this.y = top.y; this.vy = Math.min(this.vy, 0); }
     }
     this.blockCool = Player.C.blockCool;
     world.particles.burst(cell.x + 16, cell.y + 16, 10, "#ffa300", 3, { shape: "square" });
