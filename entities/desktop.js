@@ -37,9 +37,9 @@ function drawWindowFrame(ctx, x, y, w, h, o = {}) {
 }
 
 Object.assign(UPGRADE_INFO, {
-  minimize: { name: "MINIMIZE", how: "{minimize}: slip through slots" },
-  maximize: { name: "MAXIMIZE", how: "{maximize}: smash file stacks" },
-  altTab: { name: "ALT-TAB", how: "{alttab} in a linked window" },
+  minimize: { name: "MINIMIZE", desc: "Shrink small and quick to slip through thin slots.", how: "{minimize}", action: "minimize", label: "MIN", world: 4 },
+  maximize: { name: "MAXIMIZE", desc: "Grow big and heavy; walk into file stacks to smash them.", how: "{maximize}", action: "maximize", label: "MAX", world: 4 },
+  altTab: { name: "ALT-TAB", desc: "Inside a numbered window, jump to its linked twin.", how: "{alttab} in a linked window", action: "altTab", label: "TAB", world: 4 },
 });
 
 sfx.define("minimize", (s, t) => s.tone(t, { type: "sine", f0: 900, f1: 300, dur: 0.12, vol: 0.09 }), 0.08);

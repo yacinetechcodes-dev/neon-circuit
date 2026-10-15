@@ -16,9 +16,9 @@
 const HACK_GREEN = "#39ff88";
 
 Object.assign(UPGRADE_INFO, {
-  dataDash: { name: "DATA DASH", how: "{dash}: phase through" },
-  freeze: { name: "FREEZE PROCESS", how: "{freeze}" },
-  rootAccess: { name: "ROOT ACCESS", how: "opens locked gates" },
+  dataDash: { name: "DATA DASH", desc: "Your dash is untouchable and phases through firewalls.", how: "{dash}", world: 2 },
+  freeze: { name: "FREEZE PROCESS", desc: "Stops enemies and moving hazards for 3 s (9 s recharge).", how: "{freeze}", action: "freeze", label: "FRZ", world: 2 },
+  rootAccess: { name: "ROOT ACCESS", desc: "Locked gates open when you walk up to them.", how: "automatic", world: 2 },
 });
 
 sfx.define("freeze", (s, t) => {

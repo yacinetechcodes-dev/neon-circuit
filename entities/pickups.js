@@ -288,11 +288,16 @@ function PowerIcon(ctx, kind, cx, cy, color) {
 // ---------------------------------------------------- permanent upgrade
 // Optional in-level pickup that grants a permanent upgrade right away.
 // Usage in a legend: "J": "upgrade:dash"
+/** Abilities, keyed by upgrade name. Each world's entity file adds its own.
+ *   name   shown on unlock and in the Codex      desc  what it does (one line)
+ *   how    how to use it ({jump}-style key tokens, see UI.keys)
+ *   action input action that triggers it (only abilities you press)
+ *   label  its on-screen touch button              world  world that teaches it */
 const UPGRADE_INFO = {
-  doubleJump: { name: "DOUBLE JUMP", how: "{jump} in mid-air" },
-  dash: { name: "DASH", how: "{dash}" },
-  pulse: { name: "PULSE SHOT", how: "{shoot}" },
-  hpUp: { name: "ARMOR", how: "+1 max HP" },
+  doubleJump: { name: "DOUBLE JUMP", desc: "Jump again in mid-air.", how: "{jump} in mid-air", world: 1 },
+  dash: { name: "DASH", desc: "A quick burst sideways; dash into enemies to hit them.", how: "{dash}", world: 1 },
+  pulse: { name: "PULSE SHOT", desc: "Your first blaster.", how: "{shoot}", world: 1 },
+  hpUp: { name: "ARMOR", desc: "+1 max health.", how: "always on", world: 1 },
 };
 
 registerEntity("upgrade", {

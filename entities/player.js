@@ -204,6 +204,23 @@ class Player {
     sfx.play("pipeSet");
   }
 
+  /** Remaining recharge of an ability, 0 (ready) … 1 (just used). Used by
+   *  the HUD and the touch buttons. */
+  abilityCooldown(world, name) {
+    const C = Player.C, f = (v, max) => U.clamp((v || 0) / max, 0, 1);
+    switch (name) {
+      case "dash": case "dataDash": return this.dashCool > 0 || !this.canDash ? 1 : 0;
+      case "doubleJump": return this.airJumps > 0 || this.onGround ? 0 : 1;
+      case "freeze": return f(world.freezeCool, C.freezeCool);
+      case "blockPlace": return f(this.blockCool, C.blockCool);
+      case "rewind": return world.rewindUsed ? 1 : 0;
+      case "jetpack": return f(this.jetCool, C.jetCool);
+      case "sudo": return this.sudo > 0 ? 0 : f(this.sudoCool, C.sudoCool);
+      case "killProcess": return f(this.killCool, C.killCool);
+      default: return 0;
+    }
+  }
+
   // ---- weapons ----
   weaponDef() { return Weapons.get(this.weapons[this.weaponIdx]); }
   refill(name) {

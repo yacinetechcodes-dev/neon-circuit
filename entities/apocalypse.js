@@ -27,9 +27,9 @@ const RUST = {
 };
 
 Object.assign(UPGRADE_INFO, {
-  grapple: { name: "GRAPPLE HOOK", how: "{grapple} near a ring: swing, {jump} to let go" },
-  groundSlam: { name: "GROUND SLAM", how: "{slam} in mid-air: break cracks, stun bots" },
-  jetpack: { name: "JETPACK BURST", how: "{jetpack}: boost upward (recharges)" },
+  grapple: { name: "GRAPPLE HOOK", desc: "Hook a ring and swing; jump to let go.", how: "{grapple} near a ring", action: "grapple", label: "HOOK", world: 5 },
+  groundSlam: { name: "GROUND SLAM", desc: "Crash down: breaks cracked floors and stuns nearby enemies.", how: "{slam} in mid-air", action: "slam", label: "SLAM", world: 5 },
+  jetpack: { name: "JETPACK BURST", desc: "A strong upward boost (recharges in ~1.3 s).", how: "{jetpack}", action: "jetpack", label: "JET", world: 5 },
 });
 
 sfx.define("hook", (s, t) => {

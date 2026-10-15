@@ -39,6 +39,7 @@ const Game = {
     Save.load();
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    window.addEventListener("orientationchange", () => setTimeout(() => this.resize(), 200));
   },
 
   /** Called by the loader once every entity, world and level file has loaded. */
@@ -186,6 +187,7 @@ const Game = {
           { label: "CHECKPOINT", action: "checkpoint" },
           { label: "RESTART", action: "restart" },
           { label: this.soundLabel(), action: "mute" },
+          ...(Input.touchMode && document.fullscreenEnabled ? [{ label: document.fullscreenElement ? "EXIT FULLSCREEN" : "FULLSCREEN", action: "fullscreen" }] : []),
           { label: "LEVELS", action: "select" },
           { label: "QUIT", action: "title" },
         ], { width: 300 });
@@ -279,6 +281,17 @@ const Game = {
     this.setState("complete");
   },
 
+  /** Phones: fullscreen hides the browser bars (and lets us ask for landscape). */
+  toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen().then(() => {
+        if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(() => {});
+      }).catch(() => {});
+    } catch (e) { /* not supported */ }
+    this.state = "play";
+  },
+
   doAction(a) {
     switch (a) {
       case "continue": { const f = this.furthest(); this.startLevel(f.wi, f.li); break; }
@@ -295,6 +308,7 @@ const Game = {
       case "nextWorld": this.startLevel(this.worldIndex + 1, 0); break;
       case "victory": this.setState("victory"); break;
       case "mute": this.toggleMute(); break;
+      case "fullscreen": this.toggleFullscreen(); break;
     }
   },
 

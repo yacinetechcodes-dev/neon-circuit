@@ -35,9 +35,9 @@ function pixelSprite(ctx, rows, x, y, s, pal) {
 }
 
 Object.assign(UPGRADE_INFO, {
-  shrink: { name: "PIXEL SHRINK", how: "{shrink}" },
-  blockPlace: { name: "BLOCK PLACE", how: "{block}" },
-  rewind: { name: "REWIND", how: "once per level, on death" },
+  shrink: { name: "PIXEL SHRINK", desc: "Become tiny to fit through half-height gaps (press again to grow).", how: "{shrink}", action: "shrink", label: "MINI", world: 3 },
+  blockPlace: { name: "BLOCK PLACE", desc: "Drop a block to stand on; it lasts 4 s.", how: "{block}", action: "block", label: "BLK", world: 3 },
+  rewind: { name: "REWIND", desc: "Your first death in a level jumps you back ~2 s instead.", how: "automatic, once per level", world: 3 },
 });
 
 sfx.define("shrink", (s, t) => s.tone(t, { type: "square", f0: 880, f1: 1760, dur: 0.12, vol: 0.07 }), 0.08);

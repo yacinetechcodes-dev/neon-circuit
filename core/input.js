@@ -4,6 +4,14 @@
  *   Input.down("jump")     → held this frame
  *   Input.pressed("jump")  → went down since the last simulation step
  *   Input.clicks           → queue of {x, y} taps/clicks in screen space
+ *
+ * Touch: on touch devices a semi-transparent control layer is drawn over the
+ * game: a left/right pad (+ ▼) on the left; JUMP, DASH, FIRE and WPN on the
+ * right; pause top-right. Ability buttons are built from UPGRADE_INFO
+ * (entries with an `action` and a `label`), so a new ability gets a button
+ * automatically: the current world's abilities get their own buttons, older
+ * ones sit in a pop-out tray (the ••• button). Every finger is tracked, so you
+ * can hold a direction and jump at the same time.
  * ========================================================================= */
 "use strict";
 
@@ -33,11 +41,17 @@ const Input = {
   _touchDown: {},
   clicks: [],
   touchMode: false,
+  trayOpen: false,
   canvas: null,
-  buttons: [],   // on-screen touch buttons (screen space)
+  buttons: [],   // fixed on-screen touch buttons (screen space)
 
   init(canvas) {
     this.canvas = canvas;
+    // Phones and tablets start with the touch controls showing.
+    try {
+      this.touchMode = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+    } catch (e) { this.touchMode = false; }
+    this.layoutButtons();
     // Browsers only allow audio after a user gesture: unlock on first input.
     const unlockAudio = () => sfx.unlock();
     for (const type of ["keydown", "mousedown", "touchstart", "pointerdown"]) {
@@ -47,6 +61,7 @@ const Input = {
       const a = this.keyMap[ev.code];
       if (!a) return;
       ev.preventDefault();
+      this.touchMode = false;          // a real keyboard: hide the touch layer
       if (!this._down[a]) this._pressed[a] = true;
       this._down[a] = true;
     });
@@ -66,57 +81,96 @@ const Input = {
     const onTouch = (ev) => {
       ev.preventDefault();
       if (!this.touchMode) { this.touchMode = true; this.layoutButtons(); }
+      const live = Game.isPlaying() ? this.activeButtons() : [];
       if (ev.type === "touchstart") {
         for (const t of ev.changedTouches) {
           const p = this.toScreen(t.clientX, t.clientY);
-          const hitButton = this.buttons.some((b) => this.inButton(b, p));
-          if (!hitButton || !Game.isPlaying()) this.clicks.push(p);
+          const hit = live.find((b) => this.inButton(b, p));
+          if (hit && hit.action === "tray") this.trayOpen = !this.trayOpen;
+          if (!hit) this.clicks.push(p);   // menus, cards, and taps outside the buttons
         }
       }
-      // Recompute which buttons are held from every active touch.
+      // Recompute which buttons are held from every active touch (multi-touch).
       const held = {};
       for (const t of ev.touches) {
         const p = this.toScreen(t.clientX, t.clientY);
-        for (const b of this.buttons) if (this.inButton(b, p)) held[b.action] = true;
+        // Each finger presses the closest button it is on.
+        let best = null, bd = 1e9;
+        for (const b of live) {
+          const d = Math.hypot(p.x - b.x, p.y - b.y);
+          if (d <= b.r * 1.2 && d < bd) { bd = d; best = b; }
+        }
+        if (best && best.action !== "tray") held[best.action] = true;
       }
-      for (const b of this.buttons) {
-        if (held[b.action] && !this._touchDown[b.action]) this._pressed[b.action] = true;
-      }
+      for (const a in held) if (!this._touchDown[a]) this._pressed[a] = true;
       this._touchDown = held;
     };
-    canvas.addEventListener("touchstart", onTouch, { passive: false });
-    canvas.addEventListener("touchmove", onTouch, { passive: false });
-    canvas.addEventListener("touchend", onTouch, { passive: false });
-    canvas.addEventListener("touchcancel", onTouch, { passive: false });
+    for (const type of ["touchstart", "touchmove", "touchend", "touchcancel"]) canvas.addEventListener(type, onTouch, { passive: false });
+    // No pinch-zoom, double-tap zoom or long-press menus while playing.
+    for (const type of ["gesturestart", "gesturechange", "dblclick", "contextmenu"]) {
+      document.addEventListener(type, (ev) => ev.preventDefault(), { passive: false });
+    }
   },
 
+  /** Fixed buttons (thumb-sized). `need(p)` hides a button until it's useful. */
   layoutButtons() {
-    const r = 46, y = VIEW_H - 62;
+    const y = VIEW_H - 72;
     this.buttons = [
-      { action: "left", x: 62, y, r, label: "◀" },
-      { action: "right", x: 168, y, r, label: "▶" },
-      { action: "down", x: 115, y: y - 78, r: 30, label: "▼" },
-      { action: "jump", x: VIEW_W - 70, y, r, label: "JUMP" },
-      { action: "dash", x: VIEW_W - 176, y: y + 6, r: 38, label: "DASH" },
-      { action: "shoot", x: VIEW_W - 92, y: y - 102, r: 36, label: "FIRE" },
-      { action: "weaponNext", x: VIEW_W - 196, y: y - 92, r: 26, label: "WPN" },
-      { action: "freeze", x: VIEW_W - 256, y: y - 30, r: 26, label: "FRZ" },
-      { action: "shrink", x: VIEW_W - 160, y: y - 176, r: 24, label: "MINI" },
-      { action: "block", x: VIEW_W - 226, y: y - 160, r: 24, label: "BLK" },
-      { action: "minimize", x: VIEW_W - 290, y: y - 96, r: 22, label: "MIN" },
-      { action: "maximize", x: VIEW_W - 300, y: y - 40, r: 22, label: "MAX" },
-      { action: "altTab", x: VIEW_W - 92, y: y - 186, r: 24, label: "TAB" },
-      { action: "grapple", x: VIEW_W - 160, y: y - 176, r: 24, label: "HOOK" },
-      { action: "slam", x: VIEW_W - 290, y: y - 96, r: 22, label: "SLAM" },
-      { action: "jetpack", x: VIEW_W - 300, y: y - 40, r: 22, label: "JET" },
-      { action: "sudo", x: VIEW_W - 226, y: y - 160, r: 24, label: "SUDO" },
-      { action: "pipe", x: VIEW_W - 92, y: y - 186, r: 24, label: "PIPE" },
-      { action: "kill", x: VIEW_W - 256, y: y - 30, r: 26, label: "KILL" },
-      { action: "pause", x: VIEW_W - 34, y: 84, r: 22, label: "II" },
+      { action: "left", x: 72, y, r: 54, label: "◀" },
+      { action: "right", x: 196, y, r: 54, label: "▶" },
+      { action: "down", x: 134, y: y - 104, r: 36, label: "▼" },
+      { action: "jump", x: VIEW_W - 74, y: y - 6, r: 60, label: "JUMP" },
+      { action: "dash", x: VIEW_W - 196, y: y + 18, r: 44, label: "DASH", need: (p) => p.has("dash") },
+      { action: "shoot", x: VIEW_W - 84, y: y - 146, r: 46, label: "FIRE", need: (p) => p.weapons.length > 0 },
+      { action: "weaponNext", x: VIEW_W - 196, y: y - 88, r: 32, label: "WPN", need: (p) => p.weapons.length > 1 },
+      { action: "pause", x: VIEW_W - 34, y: 86, r: 26, label: "II" },
     ];
   },
+  // Ability button slots (around the right-hand cluster) and the tray row.
+  SLOTS: [[-318, -44], [-296, -134], [-252, -220], [-170, -274]],
+
+  /** Owned abilities that have a touch button: this world's first. */
+  abilityButtons(p) {
+    if (typeof UPGRADE_INFO === "undefined" || !p) return { main: [], tray: [] };
+    const wd = Game.worldDef && Game.worldDef();
+    const here = (wd && wd.abilities) || [];
+    const all = Object.keys(UPGRADE_INFO).filter((k) => UPGRADE_INFO[k].action && UPGRADE_INFO[k].label && p.has(k));
+    const mine = all.filter((k) => here.includes(k)), others = all.filter((k) => !here.includes(k));
+    const slots = this.SLOTS.length;
+    let main = mine.slice(0, slots), tray = mine.slice(slots).concat(others);
+    if (tray.length && main.length === slots) { tray = main.slice(slots - 1).concat(tray); main = main.slice(0, slots - 1); }
+    return { main, tray };
+  },
+
+  /** Every touch button that is live right now (fixed + abilities + tray). */
+  activeButtons() {
+    const p = Game.world && Game.world.player;
+    if (!p) return this.buttons.filter((b) => b.action === "pause");
+    const out = this.buttons.filter((b) => !b.need || b.need(p));
+    const { main, tray } = this.abilityButtons(p);
+    const by = VIEW_H - 72;
+    main.forEach((k, i) => {
+      const [dx, dy] = this.SLOTS[i];
+      out.push({ action: UPGRADE_INFO[k].action, x: VIEW_W + dx, y: by + dy, r: 32, label: UPGRADE_INFO[k].label, ability: k });
+    });
+    if (tray.length) {
+      const [dx, dy] = this.SLOTS[main.length];
+      out.push({ action: "tray", x: VIEW_W + dx, y: by + dy, r: 30, label: this.trayOpen ? "✕" : "•••" });
+      if (this.trayOpen) {
+        // Rows of up to 7, left of the ability slots.
+        const per = 7, gap = 72;
+        tray.forEach((k, i) => {
+          const row = Math.floor(i / per), inRow = Math.min(per, tray.length - row * per);
+          const x0 = 400 - ((inRow - 1) * gap) / 2;
+          out.push({ action: UPGRADE_INFO[k].action, x: x0 + (i % per) * gap, y: 168 + row * 74, r: 32, label: UPGRADE_INFO[k].label, ability: k });
+        });
+      }
+    }
+    return out;
+  },
+
   inButton(b, p) {
-    return Math.hypot(p.x - b.x, p.y - b.y) <= b.r * 1.15;
+    return Math.hypot(p.x - b.x, p.y - b.y) <= b.r * 1.2;
   },
 
   /** Convert client (CSS pixel) coordinates to logical screen coordinates. */
@@ -148,36 +202,28 @@ const Input = {
 
   drawTouch(ctx) {
     if (!this.touchMode || !Game.isPlaying()) return;
+    const p = Game.world && Game.world.player;
     ctx.save();
-    ctx.font = "bold 14px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    for (const b of this.buttons) {
-      const pl = Game.world && Game.world.player;
-      if (b.action === "shoot" && !(pl && pl.weapons.length)) continue;
-      if (b.action === "weaponNext" && !(pl && pl.weapons.length > 1)) continue;
-      if (b.action === "freeze" && !(pl && pl.has("freeze"))) continue;
-      if (b.action === "shrink" && !(pl && pl.has("shrink"))) continue;
-      if (b.action === "block" && !(pl && pl.has("blockPlace"))) continue;
-      if (b.action === "minimize" && !(pl && pl.has("minimize"))) continue;
-      if (b.action === "maximize" && !(pl && pl.has("maximize"))) continue;
-      if (b.action === "altTab" && !(pl && pl.has("altTab"))) continue;
-      if (b.action === "grapple" && !(pl && pl.has("grapple"))) continue;
-      if (b.action === "slam" && !(pl && pl.has("groundSlam"))) continue;
-      if (b.action === "jetpack" && !(pl && pl.has("jetpack"))) continue;
-      if (b.action === "sudo" && !(pl && pl.has("sudo"))) continue;
-      if (b.action === "pipe" && !(pl && pl.has("pipe"))) continue;
-      if (b.action === "kill" && !(pl && pl.has("killProcess"))) continue;
-      if (b.action === "dash" && !(Game.world && Game.world.player.has("dash"))) continue;
-      const on = this.down(b.action);
-      ctx.globalAlpha = on ? 0.55 : 0.28;
+    for (const b of this.activeButtons()) {
+      const on = this.down(b.action) || (b.action === "tray" && this.trayOpen);
+      const cool = b.ability && p ? p.abilityCooldown(Game.world, b.ability) : 0;
+      ctx.globalAlpha = on ? 0.5 : 0.26;
       ctx.fillStyle = "#0a1630";
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = on ? 1 : 0.6;
-      ctx.strokeStyle = "#00f0ff";
+      ctx.globalAlpha = on ? 1 : cool > 0 ? 0.3 : 0.6;
+      ctx.strokeStyle = b.ability ? "#ffd23d" : "#00f0ff";
       ctx.lineWidth = 2;
       ctx.stroke();
-      ctx.fillStyle = "#bff8ff";
+      if (cool > 0) {
+        // Recharge ring.
+        ctx.globalAlpha = 0.8; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cool)); ctx.stroke();
+        ctx.globalAlpha = 0.35;
+      }
+      ctx.fillStyle = b.ability ? "#fff2b8" : "#bff8ff";
+      ctx.font = `bold ${b.r > 40 ? 16 : 13}px ${typeof FONT !== "undefined" ? FONT : "monospace"}`;
       ctx.fillText(b.label, b.x, b.y);
     }
     ctx.restore();

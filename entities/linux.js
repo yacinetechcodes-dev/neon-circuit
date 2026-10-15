@@ -25,9 +25,9 @@ const TERM = {
 };
 
 Object.assign(UPGRADE_INFO, {
-  sudo: { name: "SUDO", how: "{sudo}: pass locked doors, ignore shields (4 s)" },
-  pipe: { name: "PIPE", how: "{pipe} twice to link two spots, {pipe} in one to travel" },
-  killProcess: { name: "KILL PROCESS", how: "{kill}: remove the targeted enemy (15 s)" },
+  sudo: { name: "SUDO", desc: "For 4 s, pass permission doors and ignore shields (12 s recharge).", how: "{sudo}", action: "sudo", label: "SUDO", world: 6 },
+  pipe: { name: "PIPE", desc: "Mark two spots, then travel between them.", how: "{pipe} at two spots, {pipe} in one to travel", action: "pipe", label: "PIPE", world: 6 },
+  killProcess: { name: "KILL PROCESS", desc: "Instantly remove the enemy under the red reticle (15 s recharge).", how: "{kill}", action: "kill", label: "KILL", world: 6 },
 });
 
 sfx.define("sudo", (s, t) => {
