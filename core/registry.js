@@ -37,6 +37,9 @@ const Registry = {
  *   onDamage(e, world, amount, source) → return true if damage was applied
  *   onDeath(e, world)     called when hp reaches 0
  *   onRespawn(e, world)   called when the player respawns at a checkpoint
+ *   info: { name, desc }  name + one-line description: a one-time tip the first
+ *                         time it's seen, and its Help / Codex entry
+ *                         (tip: false = Codex only; kind: "item" = Items tab)
  */
 function registerEntity(name, def) {
   if (Registry.entities[name]) {

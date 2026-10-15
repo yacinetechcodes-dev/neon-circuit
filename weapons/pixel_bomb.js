@@ -7,6 +7,7 @@ sfx.define("bomb", (s, t) => {
 sfx.define("bonk", (s, t) => s.tone(t, { type: "square", f0: 300, f1: 200, dur: 0.04, vol: 0.05 }), 0.04);
 
 registerWeapon("pixelBomb", {
+  desc: "Bounces, then explodes, hitting everything around it.",
   label: "BOMB",
   color: "#ffa300",
   order: 5,

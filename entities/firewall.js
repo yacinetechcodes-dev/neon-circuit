@@ -12,6 +12,7 @@
 // overrides: range (tiles, sign = direction), speed (px/frame), offset (frames),
 //            len, gap, on / off (seconds; off > 0 makes it blink)
 registerEntity("laserWall", {
+  info: { name: "Laser Wall", desc: "A moving wall of lasers: wait for the gap." },
   size: [32, 32],
   layer: 2,
   props: { range: 6, speed: 1.4, offset: 0, len: 0, gap: 1, on: 1, off: 0, alwaysActive: true, alwaysDraw: true },
@@ -82,6 +83,7 @@ registerEntity("laserWall", {
 // the top of the doorway; it extends down to the floor.
 // overrides: on (seconds closed), off (seconds open), offset (seconds)
 registerEntity("timedGate", {
+  info: { name: "Timed Gate", desc: "Opens and closes on a rhythm.", tip: false },
   size: [32, 32],
   anchor: "topleft",
   layer: 2,

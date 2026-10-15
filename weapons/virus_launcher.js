@@ -8,6 +8,7 @@ sfx.define("virus", (s, t) => {
 const VIRUS_GREEN = "#9dff3a";
 
 registerWeapon("virusLauncher", {
+  desc: "Infects an enemy so it hurts everything near it.",
   label: "VIRUS",
   color: VIRUS_GREEN,
   order: 4,

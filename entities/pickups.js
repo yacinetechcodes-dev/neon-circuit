@@ -17,6 +17,7 @@ function magnetPull(e, world) {
 
 // ---------------------------------------------------------------- core
 registerEntity("core", {
+  info: { name: "Core", desc: "Collect them all for a perfect run.", tip: false, kind: "item" },
   size: [16, 16],
   anchor: "center",
   props: { color: "#00f0ff" },
@@ -43,6 +44,7 @@ registerEntity("core", {
 
 // ---------------------------------------------------------- secret core
 registerEntity("secretCore", {
+  info: { name: "Secret Core", desc: "Hidden off the main path.", tip: false, kind: "item" },
   size: [22, 22],
   anchor: "center",
   props: { color: "#ffd23d" },
@@ -72,6 +74,7 @@ registerEntity("secretCore", {
 
 // ---------------------------------------------------------- checkpoint
 registerEntity("checkpoint", {
+  info: { name: "Checkpoint", desc: "Touch it: you restart here after a fall.", kind: "item" },
   size: [24, 56],
   layer: 0,
   init(e) { e.on = false; },
@@ -108,6 +111,7 @@ registerEntity("checkpoint", {
 
 // ---------------------------------------------------------------- exit
 registerEntity("exit", {
+  info: { name: "Exit", desc: "Step in to finish the level (locked while a boss lives).", tip: false, kind: "item" },
   size: [40, 64],
   layer: 0,
   onTouch(e, world) {
@@ -121,6 +125,10 @@ registerEntity("exit", {
   draw(e, ctx, world) {
     const locked = world.bossesAlive();
     const col = locked ? "#ff3355" : "#7dff4a";
+    // Clear label above the portal.
+    ctx.font = "bold 13px monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = col; ctx.fillText(locked ? "LOCKED" : "EXIT", U.cx(e), e.y - 10 + Math.sin(world.time * 0.08) * 2);
+    ctx.textAlign = "left";
     const cx = U.cx(e), cy = U.cy(e);
     U.glow(ctx, cx, cy, 60, col, 0.35 + Math.sin(world.time * 0.08) * 0.1);
     ctx.strokeStyle = col; ctx.lineWidth = 3;
@@ -146,10 +154,10 @@ registerEntity("exit", {
 // ------------------------------------------------------------ power-ups
 // Temporary power-ups. Arg selects the kind: shield | magnet | speed | health
 const POWERUPS = {
-  shield: { color: "#59a7ff", label: "SHIELD", frames: 60 * 20, text: "SHIELD" },
-  magnet: { color: "#ff3df0", label: "MAGNET", frames: 60 * 12, text: "MAGNET" },
-  speed: { color: "#ffb400", label: "BOOST", frames: 60 * 10, text: "SPEED" },
-  health: { color: "#ff4d6d", label: "REPAIR", frames: 0, text: "+1 HP" },
+  shield: { color: "#59a7ff", label: "SHIELD", frames: 60 * 20, text: "SHIELD", desc: "Blocks the next hit." },
+  magnet: { color: "#ff3df0", label: "MAGNET", frames: 60 * 12, text: "MAGNET", desc: "Pulls cores toward you." },
+  speed: { color: "#ffb400", label: "BOOST", frames: 60 * 10, text: "SPEED", desc: "Run faster for a while." },
+  health: { color: "#ff4d6d", label: "REPAIR", frames: 0, text: "+1 HP", desc: "Restores one heart." },
 };
 
 registerEntity("powerup", {
@@ -170,7 +178,10 @@ registerEntity("powerup", {
     }
     e.dead = true;
     sfx.play("powerup");
-    world.showHint(P.text, 1.2);
+    // First time: what it does. After that just its name.
+    if (!Save.seen("power_" + e.kind)) { Save.markSeen("power_" + e.kind); world.showHint(`${P.label}: ${P.desc}`, 2.5); }
+    else world.showHint(P.text, 1.2);
+    Guide.discover("p:" + e.kind);
     world.particles.burst(U.cx(e), U.cy(e), 20, P.color, 4, { glow: true });
     world.particles.ring(U.cx(e), U.cy(e), P.color, 30);
   },
@@ -289,13 +300,14 @@ function PowerIcon(ctx, kind, cx, cy, color) {
 // Optional in-level pickup that grants a permanent upgrade right away.
 // Usage in a legend: "J": "upgrade:dash"
 /** Abilities, keyed by upgrade name. Each world's entity file adds its own.
+ *   hud    short label: shown in the HUD with its recharge (abilities that recharge)
  *   name   shown on unlock and in the Codex      desc  what it does (one line)
  *   how    how to use it ({jump}-style key tokens, see UI.keys)
  *   action input action that triggers it (only abilities you press)
  *   label  its on-screen touch button              world  world that teaches it */
 const UPGRADE_INFO = {
   doubleJump: { name: "DOUBLE JUMP", desc: "Jump again in mid-air.", how: "{jump} in mid-air", world: 1 },
-  dash: { name: "DASH", desc: "A quick burst sideways; dash into enemies to hit them.", how: "{dash}", world: 1 },
+  dash: { name: "DASH", hud: "DASH", desc: "A quick burst sideways; dash into enemies to hit them.", how: "{dash}", world: 1 },
   pulse: { name: "PULSE SHOT", desc: "Your first blaster.", how: "{shoot}", world: 1 },
   hpUp: { name: "ARMOR", desc: "+1 max health.", how: "always on", world: 1 },
 };
@@ -314,7 +326,9 @@ registerEntity("upgrade", {
     sfx.play("powerup");
     e.dead = true;
     const info = UPGRADE_INFO[e.kind] || { name: e.kind, how: "" };
-    world.banner = { text: info.name, sub: UI.keys(info.how), t: 150, max: 150, color: "#ffd23d" };
+    world.banner = { text: info.name, sub: UI.keys([info.desc, info.how].filter(Boolean).join("   ")), t: 180, max: 180, color: "#ffd23d" };
+    Save.markSeen("ability_" + e.kind);
+    Guide.discover("a:" + e.kind);
     world.particles.burst(U.cx(e), U.cy(e), 40, "#ffd23d", 6, { glow: true });
   },
   draw(e, ctx, world) {
@@ -330,6 +344,7 @@ registerEntity("upgrade", {
 // ---------------------------------------------------------- dash refill
 // Crystal that restores the air dash (and double jump). Respawns.
 registerEntity("dashRefill", {
+  info: { name: "Dash Crystal", desc: "Refills your dash and double jump in mid-air.", tip: false, kind: "item" },
   size: [20, 24],
   anchor: "center",
   init(e) { e.cool = 0; },

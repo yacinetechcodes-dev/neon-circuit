@@ -6,6 +6,7 @@ sfx.define("popupShot", (s, t) => {
 }, 0.06);
 
 registerWeapon("popupShotgun", {
+  desc: "A spread of five pop-up windows, short range.",
   label: "POPUPS",
   color: "#4fc3ff",
   order: 6,

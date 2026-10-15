@@ -8,12 +8,23 @@ const FONT = "'Consolas', 'Menlo', 'DejaVu Sans Mono', monospace";
 
 const UI = {
   /** Replace {jump}-style tokens with the right key names for the device. */
-  keys(text) {
-    const touch = Input.touchMode;
+  keys(text, touch = Input.touchMode) {
     const map = touch
       ? { move: "◀ ▶", jump: "JUMP", dash: "DASH", shoot: "FIRE", down: "▼", pause: "II", swap: "WPN", freeze: "FRZ", shrink: "MINI", block: "BLK", minimize: "MIN", maximize: "MAX", alttab: "TAB", grapple: "HOOK", slam: "SLAM", jetpack: "JET", sudo: "SUDO", pipe: "PIPE", kill: "KILL" }
       : { move: "← → / A D", jump: "SPACE", dash: "SHIFT", shoot: "F", down: "↓ / S", pause: "ESC", swap: "Q / E", freeze: "R", shrink: "T", block: "B", minimize: "Y", maximize: "U", alttab: "TAB / I", grapple: "G", slam: "↓ / N", jetpack: "H", sudo: "O", pipe: "\\ / .", kill: "DEL / ," };
     return text.replace(/\{(\w+)\}/g, (m, k) => map[k] || m);
+  },
+
+  /** Split text into lines that fit `width` (uses the current ctx.font). */
+  wrap(ctx, text, width) {
+    const out = [];
+    let line = "";
+    for (const w of String(text).split(" ")) {
+      const t = line ? line + " " + w : w;
+      if (ctx.measureText(t).width > width && line) { out.push(line); line = w; } else line = t;
+    }
+    if (line) out.push(line);
+    return out;
   },
 
   text(ctx, str, x, y, o = {}) {
@@ -85,55 +96,84 @@ const UI = {
     this.panel(ctx, VIEW_W - 132, 12, 120, 34, th.accent, 0.6);
     this.text(ctx, U.fmtTime(world.levelTime / FPS), VIEW_W - 72, 35, { size: 15, align: "center" });
 
-    // Active timed power-ups.
+    // Active timed power-ups: icon, name and time left.
     let px = 14;
-    for (const [k, color] of [["magnet", "#ff3df0"], ["speed", "#ffb400"]]) {
+    for (const k of ["shield", "magnet", "speed"]) {
       const f = p.powers[k];
       if (f <= 0) continue;
-      const max = POWERUPS[k].frames;
-      this.panel(ctx, px, 54, 76, 26, color, 0.6);
-      PowerIcon(ctx, k, px + 14, 67, color);
-      ctx.fillStyle = U.rgba(color, 0.3); ctx.fillRect(px + 28, 63, 40, 6);
-      ctx.fillStyle = color; ctx.fillRect(px + 28, 63, 40 * (f / max), 6);
-      px += 84;
+      const P = POWERUPS[k], color = P.color, max = P.frames;
+      this.panel(ctx, px, 54, 92, 30, color, 0.6);
+      PowerIcon(ctx, k, px + 14, 69, color);
+      this.text(ctx, P.label, px + 28, 66, { size: 9, color });
+      ctx.fillStyle = U.rgba(color, 0.3); ctx.fillRect(px + 28, 72, 56, 5);
+      ctx.fillStyle = color; ctx.fillRect(px + 28, 72, 56 * Math.min(1, f / max), 5);
+      px += 100;
     }
 
     // Owned upgrades (bottom-left), dash shows readiness.
     // (On touch screens they sit under the HUD, away from the buttons.)
     let ux = Input.touchMode ? px : 14;
     const uy = Input.touchMode ? 54 : VIEW_H - 40;
-    const ups = [["doubleJump", p.airJumps > 0 || p.onGround], [p.has("dataDash") ? "dataDash" : "dash", p.canDash && p.dashCool <= 0],
-      ["freeze", !(world.freezeCool > 0)], ["rootAccess", true],
-      ["shrink", true], ["blockPlace", !(p.blockCool > 0)], ["rewind", !world.rewindUsed],
-      ["minimize", true], ["maximize", true], ["altTab", true],
-      ["grapple", true], ["groundSlam", true], ["jetpack", !(p.jetCool > 0)],
-      ["sudo", !(p.sudoCool > 0) || p.sudo > 0], ["pipe", true], ["killProcess", !(p.killCool > 0)]];
-    for (const [k, ready] of ups) {
-      if (!p.has(k)) continue;
-      const color = ready ? "#ffd23d" : "#6a5a2a";
-      this.panel(ctx, ux, uy, 28, 28, color, 0.5);
-      PowerIcon(ctx, k, ux + 14, uy + 14, color);
-      ux += 34;
+    // Abilities that recharge (UPGRADE_INFO[k].hud): icon, short label, recharge sweep.
+    const uyy = Input.touchMode ? uy : uy - 12;
+    for (const k of Object.keys(UPGRADE_INFO)) {
+      const inf = UPGRADE_INFO[k];
+      if (!inf.hud || !p.has(k) || (k === "dash" && p.has("dataDash"))) continue;
+      const cool = p.abilityCooldown(world, k), active = (k === "sudo" && p.sudo > 0);
+      const color = active ? "#fcaf3e" : cool > 0 ? "#6a5a2a" : "#ffd23d";
+      this.panel(ctx, ux, uyy, 34, 40, color, 0.5);
+      PowerIcon(ctx, k, ux + 17, uyy + 14, color);
+      if (cool > 0) {
+        ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fillRect(ux + 3, uyy + 3, 28, 24 * cool);
+      }
+      this.text(ctx, inf.hud, ux + 17, uyy + 36, { size: 9, align: "center", color });
+      ux += 38;
     }
 
     // Current weapon: icon, name, charges.
     const wd = p.weaponDef && p.weaponDef();
     if (wd) {
       const name = p.weapons[p.weaponIdx];
-      const wy = Input.touchMode ? 88 : uy;
+      const wy = Input.touchMode ? 100 : uy;
       const wx = Input.touchMode ? 14 : ux;
       this.panel(ctx, wx, wy, 112, 28, wd.color, 0.55);
       if (wd.icon) wd.icon(ctx, wx + 14, wy + 14, p.shootCool <= 0 ? wd.color : U.mix(wd.color, "#000000", 0.5));
       this.text(ctx, wd.label, wx + 28, wy + 13, { size: 11, color: wd.color });
       if (wd.ammo != null) {
         for (let i = 0; i < wd.ammo; i++) {
+          const pw = 76 / wd.ammo - 2, x = wx + 28 + i * (76 / wd.ammo);
           ctx.fillStyle = i < p.ammo[name] ? wd.color : U.rgba(wd.color, 0.2);
-          ctx.fillRect(wx + 28 + i * (76 / wd.ammo), wy + 18, 76 / wd.ammo - 2, 4);
+          ctx.fillRect(x, wy + 18, pw, 4);
+          // The charge being refilled fills up as it recharges.
+          if (i === Math.floor(p.ammo[name]) && wd.regen) { ctx.fillStyle = U.rgba(wd.color, 0.7); ctx.fillRect(x, wy + 18, pw * (p.ammoT[name] / wd.regen), 4); }
         }
       } else this.text(ctx, "∞", wx + 28, wy + 24, { size: 11, color: U.rgba(wd.color, 0.7) });
       if (p.weapons.length > 1) this.text(ctx, `${p.weaponIdx + 1}/${p.weapons.length}`, wx + 106, wy + 13, { size: 10, align: "right", color: "#7f9fc0", weight: "normal" });
     }
     this.drawBossBar(ctx, world);
+    this.drawExitMarker(ctx, world);
+  },
+
+  /** When the exit is off screen, an arrow at the screen edge points to it. */
+  drawExitMarker(ctx, world) {
+    if (world._exit === undefined) world._exit = world.entities.find((e) => e.name === "exit") || null;
+    const e = world._exit;
+    if (!e || world.onScreen(e, 0) || world.state !== "play") return;
+    const cam = world.camera, cx = VIEW_W / 2, cy = VIEW_H / 2;
+    const dx = U.cx(e) - cam.x - cx, dy = U.cy(e) - cam.y - cy;
+    const k = Math.min((VIEW_W / 2 - 50) / Math.abs(dx || 1e-6), (VIEW_H / 2 - 110) / Math.abs(dy || 1e-6));
+    const x = cx + dx * k, y = cy + dy * k + 20, a = Math.atan2(dy, dx);
+    const col = world.bossesAlive() ? "#ff3355" : "#7dff4a";
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.translate(x, y);
+    ctx.fillStyle = col;
+    ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-6, -9); ctx.lineTo(-6, 9); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 0.75;
+    this.text(ctx, "EXIT", x - Math.cos(a) * 22, y - Math.sin(a) * 22 + 4, { size: 10, align: "center", color: col });
+    ctx.globalAlpha = 1;
   },
 
   /** Thin boss health bar at the top centre, name above — clear of the action. */
@@ -213,7 +253,7 @@ class Menu {
     return null;
   }
   draw(ctx, cx, y, time, accent = "#00f0ff") {
-    const w = this.opts.width || 320, h = 40, gap = 10;
+    const w = this.opts.width || 320, h = this.opts.compact ? 32 : 40, gap = this.opts.compact ? 6 : 10;
     this.rects = [];
     this.items.forEach((it, i) => {
       const x = cx - w / 2, yy = y + i * (h + gap);
@@ -227,10 +267,11 @@ class Menu {
       if (on) {
         ctx.fillStyle = accent;
         const o = Math.sin(time * 0.15) * 3;
-        ctx.beginPath(); ctx.moveTo(x + 14 + o, yy + 13); ctx.lineTo(x + 22 + o, yy + 20); ctx.lineTo(x + 14 + o, yy + 27); ctx.fill();
+        const m = h / 2;
+        ctx.beginPath(); ctx.moveTo(x + 14 + o, yy + m - 7); ctx.lineTo(x + 22 + o, yy + m); ctx.lineTo(x + 14 + o, yy + m + 7); ctx.fill();
       }
-      UI.text(ctx, it.label, cx, yy + 26, {
-        size: 17, align: "center",
+      UI.text(ctx, it.label, cx, yy + (this.opts.compact ? 22 : 26), {
+        size: this.opts.compact ? 15 : 17, align: "center",
         color: it.disabled ? "#4a5a70" : on ? "#ffffff" : "#a8c8e0",
       });
     });

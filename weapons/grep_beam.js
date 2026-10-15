@@ -7,6 +7,7 @@ sfx.define("grep", (s, t) => {
 }, 0.06);
 
 registerWeapon("grepBeam", {
+  desc: "An instant, precise beam that pierces every enemy in line.",
   label: "GREP",
   color: "#8ae234",
   order: 8,

@@ -16,6 +16,7 @@
 "use strict";
 
 registerEntity("wreckerTitan", {
+  info: { name: "Wrecker Titan", desc: "Hit it while it overheats (its furnace opens)." },
   size: [160, 128],
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,

@@ -25,9 +25,9 @@ const TERM = {
 };
 
 Object.assign(UPGRADE_INFO, {
-  sudo: { name: "SUDO", desc: "For 4 s, pass permission doors and ignore shields (12 s recharge).", how: "{sudo}", action: "sudo", label: "SUDO", world: 6 },
+  sudo: { name: "SUDO", hud: "SUDO", desc: "For 4 s, pass permission doors and ignore shields (12 s recharge).", how: "{sudo}", action: "sudo", label: "SUDO", world: 6 },
   pipe: { name: "PIPE", desc: "Mark two spots, then travel between them.", how: "{pipe} at two spots, {pipe} in one to travel", action: "pipe", label: "PIPE", world: 6 },
-  killProcess: { name: "KILL PROCESS", desc: "Instantly remove the enemy under the red reticle (15 s recharge).", how: "{kill}", action: "kill", label: "KILL", world: 6 },
+  killProcess: { name: "KILL PROCESS", hud: "KILL", desc: "Instantly remove the enemy under the red reticle (15 s recharge).", how: "{kill}", action: "kill", label: "KILL", world: 6 },
 });
 
 sfx.define("sudo", (s, t) => {
@@ -53,6 +53,7 @@ function termLabel(ctx, text, x, y, color, size = 9) {
 
 // ---------------------------------------------------------------- zombieProcess
 registerEntity("zombieProcess", {
+  info: { name: "Zombie Process", desc: "Gets back up after you 'kill' it: stomp the <defunct> body." },
   size: [24, 30],
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 2,
     speed: 0.8, revive: 240, color: TERM.gray },
@@ -105,6 +106,7 @@ registerEntity("zombieProcess", {
 
 // ---------------------------------------------------------------- memoryLeak
 registerEntity("memoryLeak", {
+  info: { name: "Memory Leak", desc: "Keeps growing; shots shrink it." },
   size: [18, 18],
   props: { enemy: true, hurts: true, shootable: true, dashable: true, hp: 99, grow: 14, max: 56, color: TERM.purple,
     stompable: (e) => (e.w < 32 ? true : "bounce") },
@@ -146,6 +148,7 @@ registerEntity("memoryLeak", {
 
 // ---------------------------------------------------------------- forkChild
 registerEntity("forkChild", {
+  info: { name: "Fork", desc: "A tiny process that copies itself.", tip: false },
   size: [12, 12],
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 1,
     transient: true, alwaysActive: true, split: 150, color: TERM.amber },
@@ -176,6 +179,7 @@ registerEntity("forkChild", {
 // ---------------------------------------------------------------- forkBomb
 // overrides: cap (max children alive), rate (frames between forks), sight (tiles)
 registerEntity("forkBomb", {
+  info: { name: "Fork Bomb", desc: "Spawns processes that copy themselves: destroy the bomb." },
   size: [30, 30],
   props: { enemy: true, hurts: true, stompable: "bounce", shootable: true, dashable: false, hp: 5,
     cap: 5, rate: 100, sight: 11, color: TERM.amber, alwaysActive: true },
@@ -211,6 +215,7 @@ registerEntity("forkBomb", {
 
 // ---------------------------------------------------------------- kernelPanicOrb
 registerEntity("kernelPanicOrb", {
+  info: { name: "Kernel Panic Orb", desc: "Shielded until it blows its ring: strike then, or use Sudo." },
   size: [28, 28],
   anchor: "center",
   props: { enemy: true, hurts: true, shootable: true, hp: 3, rate: 170, ring: 110, sight: 9, color: TERM.red,
@@ -260,6 +265,7 @@ registerEntity("kernelPanicOrb", {
 // ---------------------------------------------------------------- permDoor
 // One cell of a permission-locked door. Solid unless Sudo is active.
 registerEntity("permDoor", {
+  info: { name: "Permission Door", desc: "Locked: only Sudo gets you through." },
   size: [32, 32],
   anchor: "topleft",
   props: { solid: true, alwaysActive: true },
@@ -293,6 +299,7 @@ registerEntity("permDoor", {
 // offset (s), mode: "rect" (travels a rectangle, clockwise) | "wrap" (slides
 // lw tiles, then snaps back to the start — stand on it too long and you drop).
 registerEntity("loopPlatform", {
+  info: { name: "Loop Platform", desc: "Stuck in an infinite loop; some snap back to the start." },
   size: [96, 16],
   anchor: "topleft",
   props: { solid: true, width: 3, lw: 4, lh: 3, speed: 1.4, offset: 0, mode: "rect", alwaysActive: true },
@@ -346,6 +353,7 @@ registerEntity("loopPlatform", {
 
 // ---------------------------------------------------------------- packageBox
 registerEntity("packageBox", {
+  info: { name: "Package", desc: "A crate to stand on.", tip: false },
   size: [32, 32],
   anchor: "topleft",
   props: { solid: true },

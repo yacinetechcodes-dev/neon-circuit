@@ -59,6 +59,7 @@ sfx.define("smash", (s, t) => {
 
 // ---------------------------------------------------------------- popupWindow
 registerEntity("popupWindow", {
+  info: { name: "Pop-up", desc: "Chases you around. Stomp, shoot or dash it." },
   size: [36, 26],
   anchor: "center",
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 1,
@@ -83,6 +84,7 @@ registerEntity("popupWindow", {
 
 // ---------------------------------------------------------------- errorBox
 registerEntity("errorBox", {
+  info: { name: "Error Box", desc: "Its 'ding' sends out a ring: keep away or jump it." },
   size: [38, 28],
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 2,
     speed: 0.8, rate: 140, ring: 92, color: DESK.red },
@@ -118,6 +120,7 @@ registerEntity("errorBox", {
 
 // ---------------------------------------------------------------- spinLoader
 registerEntity("spinLoader", {
+  info: { name: "Spinning Loader", desc: "Spinning, don't stomp it. Shoot or dash it." },
   size: [26, 26],
   props: { enemy: true, hurts: true, stompable: false, shootable: true, dashable: true, hp: 3, speed: 2.4, color: DESK.sky },
   init(e) { e.dir = e.opts.dir === "right" ? 1 : -1; },
@@ -146,6 +149,7 @@ registerEntity("spinLoader", {
 // A window you can stand on that closes and reopens on a rhythm.
 // overrides: width (tiles), on (s open), off (s closed), offset (s)
 registerEntity("closingWindow", {
+  info: { name: "Closing Window", desc: "A platform that closes and reopens on a rhythm." },
   size: [96, 16],
   anchor: "topleft",
   props: { solid: true, width: 3, on: 2.2, off: 1.2, offset: 0, alwaysActive: true },
@@ -178,6 +182,7 @@ registerEntity("closingWindow", {
 // 3×2-tile panel hanging from a ceiling: waits, shakes, crashes down, rises.
 // Pure function of time (deterministic). overrides: delay (s), offset (s)
 registerEntity("bluePanel", {
+  info: { name: "Crashing Panel", desc: "Shakes, then crashes down: get clear." },
   size: [96, 64],
   anchor: "topleft",
   props: { solid: true, delay: 1.4, offset: 0, alwaysActive: true },
@@ -232,6 +237,7 @@ registerEntity("bluePanel", {
 // ---------------------------------------------------------------- dragTrap
 // arg: "l" | "r" (default) — the direction files (and you) get dragged.
 registerEntity("dragTrap", {
+  info: { name: "File-Drag Zone", desc: "Drags you sideways while you're inside." },
   size: [32, 32],
   anchor: "topleft",
   layer: 0,
@@ -256,6 +262,7 @@ registerEntity("dragTrap", {
 
 // ---------------------------------------------------------------- smashBlock
 registerEntity("smashBlock", {
+  info: { name: "File Stack", desc: "Only a Maximized robot can smash it." },
   size: [32, 32],
   anchor: "topleft",
   props: { solid: true, alwaysActive: true },
@@ -299,6 +306,7 @@ registerEntity("smashBlock", {
 // ---------------------------------------------------------------- slotBlock
 // Solid top part of the cell, leaving an 11 px slot at the bottom.
 registerEntity("slotBlock", {
+  info: { name: "Slot", desc: "A thin gap only a Minimized robot fits through." },
   size: [32, 21],
   anchor: "top",
   props: { solid: true },
@@ -313,6 +321,7 @@ registerEntity("slotBlock", {
 // ---------------------------------------------------------------- tabWindow
 // arg: link id. Press Alt-Tab while inside one to jump to its partner.
 registerEntity("tabWindow", {
+  info: { name: "Linked Window", desc: "Alt-Tab inside it to jump to its twin." },
   size: [44, 52],
   layer: 0,
   props: { alwaysActive: true },

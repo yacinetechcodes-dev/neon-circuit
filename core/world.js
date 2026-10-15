@@ -161,6 +161,7 @@ class World {
       p.update(this);
       this.interactions();
       this.runScripts();
+      if (typeof Guide !== "undefined") Guide.update(this);
       if (p.y > this.ph + 80) this.fallOut();
     } else if (this.state === "dying") {
       if (--this.stateTimer <= 0) Game.onPlayerDied(this);
@@ -388,7 +389,9 @@ class World {
     sfx.play("bossWake");
     if (arena) this.camera.lock = arena;
     this.camera.shake(10);
-    this.banner = { text: e.title || "WARNING", sub: "", t: 100, max: 120, color: "#ff3df0" };
+    // Boss name card: name + how to beat it.
+    const info = e.def.info;
+    this.banner = { text: e.title || "WARNING", sub: info ? info.desc.toUpperCase() : "", t: 170, max: 170, color: "#ff3df0" };
   }
   endBoss(e) {
     this.flags.bossFight = false;

@@ -15,6 +15,7 @@
 "use strict";
 
 registerEntity("kernelCore", {
+  info: { name: "Kernel Core", desc: "Hit the core while it dumps; in phase 3 stomp it or use Sudo." },
   size: [112, 112],
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,

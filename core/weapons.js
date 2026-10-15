@@ -138,7 +138,9 @@ registerEntity("weapon", {
     p.giveWeapon(e.weapon, true);
     Save.addWeapon(e.weapon);
     e.dead = true;
-    world.banner = { text: def.label, sub: UI.keys("{swap}"), t: 120, max: 120, color: def.color };
+    world.banner = { text: def.label, sub: UI.keys(`${def.desc || ""}   {shoot} fire · {swap} switch`), t: 180, max: 180, color: def.color };
+    Save.markSeen("weapon_" + e.weapon);
+    Guide.discover("w:" + e.weapon);
     world.particles.burst(U.cx(e), U.cy(e), 30, def.color, 5, { glow: true });
     sfx.play("powerup");
   },

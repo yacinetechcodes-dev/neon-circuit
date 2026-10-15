@@ -14,6 +14,7 @@
 "use strict";
 
 registerEntity("mainframe", {
+  info: { name: "The Mainframe", desc: "Hit its core while it's down and exposed." },
   size: [96, 96],
   anchor: "center",
   layer: 1,

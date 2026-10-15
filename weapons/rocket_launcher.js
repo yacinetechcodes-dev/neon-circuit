@@ -7,6 +7,7 @@ sfx.define("rocketLaunch", (s, t) => {
 }, 0.08);
 
 registerWeapon("rocketLauncher", {
+  desc: "Area damage; the only thing that breaks cracked walls.",
   label: "ROCKET",
   color: "#ff6a1a",
   order: 7,

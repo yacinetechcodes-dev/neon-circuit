@@ -29,7 +29,7 @@ const RUST = {
 Object.assign(UPGRADE_INFO, {
   grapple: { name: "GRAPPLE HOOK", desc: "Hook a ring and swing; jump to let go.", how: "{grapple} near a ring", action: "grapple", label: "HOOK", world: 5 },
   groundSlam: { name: "GROUND SLAM", desc: "Crash down: breaks cracked floors and stuns nearby enemies.", how: "{slam} in mid-air", action: "slam", label: "SLAM", world: 5 },
-  jetpack: { name: "JETPACK BURST", desc: "A strong upward boost (recharges in ~1.3 s).", how: "{jetpack}", action: "jetpack", label: "JET", world: 5 },
+  jetpack: { name: "JETPACK BURST", hud: "JET", desc: "A strong upward boost (recharges in ~1.3 s).", how: "{jetpack}", action: "jetpack", label: "JET", world: 5 },
 });
 
 sfx.define("hook", (s, t) => {
@@ -107,6 +107,7 @@ function rustPlate(ctx, x, y, w, h, base, edge) {
 
 // ---------------------------------------------------------------- scrapCrawler
 registerEntity("scrapCrawler", {
+  info: { name: "Scrap Crawler", desc: "Lunges when you get close." },
   size: [30, 18],
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 2,
     speed: 1.1, lunge: 2.8, sight: 5, color: RUST.rust },
@@ -135,6 +136,7 @@ registerEntity("scrapCrawler", {
 
 // ---------------------------------------------------------------- rocketDrone
 registerEntity("rocketDrone", {
+  info: { name: "Rocket Drone", desc: "Fires slow homing rockets: shoot them down or dodge." },
   size: [32, 22],
   anchor: "center",
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 2,
@@ -208,6 +210,7 @@ registerEntity("enemyRocket", {
 
 // ---------------------------------------------------------------- wreckerBot
 registerEntity("wreckerBot", {
+  info: { name: "Wrecker Bot", desc: "Armoured, swings a wrecking ball. Ground Slam to stun it, then stomp." },
   size: [40, 40],
   props: { enemy: true, hurts: true, hp: 6, speed: 0.6, chain: 54, spin: 0.045, color: RUST.ember,
     stompable: (e) => (e.stun > 0 ? true : "bounce"),
@@ -246,6 +249,7 @@ registerEntity("wreckerBot", {
 // ---------------------------------------------------------------- collapseFloor
 // Rubble block: you can stand on it briefly; it crumbles, then reforms.
 registerEntity("collapseFloor", {
+  info: { name: "Rubble", desc: "Crumbles soon after you stand on it, reforms later." },
   size: [32, 32],
   anchor: "topleft",
   props: { solid: true, alwaysActive: true, shake: 34, gone: 300 },
@@ -284,6 +288,7 @@ registerEntity("collapseFloor", {
 // Floor vent; the hitbox is the flame column above it.
 // overrides: height (tiles), on / off (s), offset (s)
 registerEntity("fireVent", {
+  info: { name: "Fire Vent", desc: "Smokes as a warning, then blasts flame." },
   size: [24, 96],
   props: { height: 3, on: 1.0, off: 1.8, offset: 0, warn: 0.5, alwaysActive: true },
   init(e) {
@@ -328,6 +333,7 @@ registerEntity("fireVent", {
 // Ceiling crack. A rubble chunk falls on a fixed rhythm (pure function of
 // time): warning shadow, fall, shatter. overrides: rate (s), offset (s)
 registerEntity("debrisDrop", {
+  info: { name: "Falling Debris", desc: "Chunks fall where the red mark flashes." },
   size: [28, 28],
   anchor: "top",
   props: { rate: 2.2, offset: 0, warn: 40, alwaysActive: true },
@@ -376,6 +382,7 @@ registerEntity("debrisDrop", {
 // ---------------------------------------------------------------- toxic
 // One cell of toxic pool. The burning surface is a few px below the cell top.
 registerEntity("toxic", {
+  info: { name: "Toxic Sludge", desc: "Burns and throws you out.", tip: false },
   size: [32, 24],
   anchor: "topleft",
   layer: 2,
@@ -401,6 +408,7 @@ registerEntity("toxic", {
 
 // ---------------------------------------------------------------- crackedFloor / crackedWall
 registerEntity("crackedFloor", {
+  info: { name: "Cracked Floor", desc: "Ground Slam (or a rocket) breaks it." },
   size: [32, 32],
   anchor: "topleft",
   props: { solid: true, alwaysActive: true },
@@ -412,6 +420,7 @@ registerEntity("crackedFloor", {
   },
 });
 registerEntity("crackedWall", {
+  info: { name: "Cracked Wall", desc: "Only a rocket blast breaks it." },
   size: [32, 32],
   anchor: "topleft",
   props: { solid: true, alwaysActive: true },
@@ -426,6 +435,7 @@ registerEntity("crackedWall", {
 
 // ---------------------------------------------------------------- grappleAnchor
 registerEntity("grappleAnchor", {
+  info: { name: "Grapple Ring", desc: "Hook it with the Grapple Hook to swing." },
   size: [20, 20],
   anchor: "center",
   layer: 0,

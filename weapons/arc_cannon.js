@@ -5,6 +5,7 @@ sfx.define("arc", (s, t) => {
 }, 0.1);
 
 registerWeapon("arcCannon", {
+  desc: "Slow, strong orb that pierces one enemy.",
   label: "ARC",
   color: "#3df5ff",
   order: 2,

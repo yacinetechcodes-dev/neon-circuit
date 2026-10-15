@@ -18,6 +18,7 @@ function cycleState(world, on, off, offset) {
 // ---------------------------------------------------------------- spike
 // arg: up (default) | down | left | right  — the direction the points face.
 registerEntity("spike", {
+  info: { name: "Spikes", desc: "Sharp. Don't touch.", tip: false },
   size: [32, 32],
   props: { color: "#ff3355" },
   init(e, world, arg) {
@@ -78,6 +79,7 @@ registerEntity("spike", {
 // arg: v (beam shoots down from a ceiling emitter) | h (beam shoots right).
 // overrides: on, off, offset (seconds). off: 0 = always on.
 registerEntity("laser", {
+  info: { name: "Laser", desc: "Burns while it's on; some blink on and off.", tip: false },
   size: [32, 32],
   layer: 2,
   props: { on: 1.5, off: 1.5, offset: 0 },
@@ -133,6 +135,7 @@ registerEntity("laser", {
 // A solid block whose top surface is electrified in cycles.
 // overrides: on, off, offset (seconds)
 registerEntity("electric", {
+  info: { name: "Electric Floor", desc: "Shocks you while it crackles.", tip: false },
   size: [32, 32],
   props: { on: 1.2, off: 1.8, offset: 0 },
   init(e, world) {
@@ -173,6 +176,7 @@ registerEntity("electric", {
 // 2×2 tile block hanging from a ceiling. Slams down, then slowly rises.
 // overrides: delay (s, wait at top), offset (s), fallSpeed, riseSpeed
 registerEntity("crusher", {
+  info: { name: "Crusher", desc: "Slams down on a rhythm: pass between hits.", tip: false },
   size: [64, 64],
   anchor: "topleft",
   props: { solid: true, delay: 1.4, offset: 0, fallSpeed: 14, riseSpeed: 1.6 },
@@ -243,6 +247,7 @@ registerEntity("crusher", {
 // arg: h | v. overrides: range (tiles, sign = direction), speed (px/frame),
 // width (tiles), offset (frames).
 registerEntity("movingPlatform", {
+  info: { name: "Moving Platform", desc: "Carries you along.", tip: false },
   size: [96, 16],
   anchor: "topleft",
   props: { solid: true, range: 4, speed: 1.6, width: 3, offset: 0 },
@@ -277,6 +282,7 @@ registerEntity("movingPlatform", {
 
 // -------------------------------------------------------- falling platform
 registerEntity("fallingPlatform", {
+  info: { name: "Falling Platform", desc: "Drops shortly after you land on it." },
   size: [32, 16],
   anchor: "top",
   props: { solid: true },
@@ -332,6 +338,7 @@ registerEntity("fallingPlatform", {
 
 // -------------------------------------------------------- low-gravity field
 registerEntity("gravityField", {
+  info: { name: "Low-Gravity Field", desc: "Inside it you float and jump higher." },
   size: [32, 32],
   anchor: "topleft",
   layer: 0,
@@ -382,6 +389,7 @@ registerEntity("fakeWall", {
 // ---------------------------------------------------------------- boss gate
 // Open (passable) normally; becomes a solid energy barrier during boss fights.
 registerEntity("gate", {
+  info: { name: "Arena Gate", desc: "Shuts during a boss fight, opens when it's over.", tip: false },
   size: [32, 32],
   anchor: "topleft",
   layer: 2,

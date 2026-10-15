@@ -14,6 +14,7 @@
 "use strict";
 
 registerEntity("blueScreenBeast", {
+  info: { name: "Blue Screen Beast", desc: "Hit it while it updates." },
   size: [128, 112],
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,

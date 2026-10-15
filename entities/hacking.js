@@ -16,8 +16,8 @@
 const HACK_GREEN = "#39ff88";
 
 Object.assign(UPGRADE_INFO, {
-  dataDash: { name: "DATA DASH", desc: "Your dash is untouchable and phases through firewalls.", how: "{dash}", world: 2 },
-  freeze: { name: "FREEZE PROCESS", desc: "Stops enemies and moving hazards for 3 s (9 s recharge).", how: "{freeze}", action: "freeze", label: "FRZ", world: 2 },
+  dataDash: { name: "DATA DASH", hud: "DASH", desc: "Your dash is untouchable and phases through firewalls.", how: "{dash}", world: 2 },
+  freeze: { name: "FREEZE PROCESS", hud: "FRZ", desc: "Stops enemies and moving hazards for 3 s (9 s recharge).", how: "{freeze}", action: "freeze", label: "FRZ", world: 2 },
   rootAccess: { name: "ROOT ACCESS", desc: "Locked gates open when you walk up to them.", how: "automatic", world: 2 },
 });
 
@@ -42,6 +42,7 @@ function lineClear(world, x0, y0, x1, y1) {
 
 // ---------------------------------------------------------------- avDrone
 registerEntity("avDrone", {
+  info: { name: "Antivirus Drone", desc: "Scans, locks on and fires a dart. Stomp or shoot it." },
   size: [28, 24],
   anchor: "center",
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 2,
@@ -104,6 +105,7 @@ registerEntity("avDrone", {
 // ---------------------------------------------------------- firewallWall
 // One "I" at the top of a doorway; the wall fills it down to the floor.
 registerEntity("firewallWall", {
+  info: { name: "Firewall", desc: "A living barrier: shoot it down or Data Dash through it." },
   size: [32, 32],
   anchor: "topleft",
   layer: 2,
@@ -165,6 +167,7 @@ function drawBug(ctx, e, segs) {
 }
 
 registerEntity("bugCrawler", {
+  info: { name: "Bug Crawler", desc: "Hops at you; splits into two bit bugs." },
   size: [26, 16],
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 1, speed: 1.6, color: "#b6ff3a" },
   init(e) { e.dir = e.opts.dir === "right" ? 1 : -1; e.hop = 40 + Math.floor(Math.random() * 40); },
@@ -187,6 +190,7 @@ registerEntity("bugCrawler", {
 });
 
 registerEntity("bitBug", {
+  info: { name: "Bit Bug", desc: "A tiny piece of a bug crawler.", tip: false },
   size: [14, 10],
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 1, speed: 2.2, color: "#b6ff3a" },
   init(e) { e.dir = 1; },
@@ -197,6 +201,7 @@ registerEntity("bitBug", {
 // ---------------------------------------------------------- trojan
 // Disguised as a repair capsule. A faint glitch every few seconds gives it away.
 registerEntity("trojan", {
+  info: { name: "Trojan", desc: "Looks like a repair kit, but bites. Watch for the glitch." },
   size: [24, 24],
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 2, color: "#ff3df0" },
   init(e) { e.mode = "disguise"; e.hopT = 0; e.homeY = e.y; },
@@ -264,6 +269,7 @@ registerEntity("trojan", {
 // ---------------------------------------------------------- glitchBlock
 // overrides: on (s solid), off (s gone), offset (s)
 registerEntity("glitchBlock", {
+  info: { name: "Glitch Block", desc: "Solid, then flickers out and back on." },
   size: [32, 32],
   anchor: "topleft",
   props: { on: 2.0, off: 1.2, offset: 0, solid: true, alwaysActive: true },
@@ -310,6 +316,7 @@ registerEntity("glitchBlock", {
 // One "+" at the top of a doorway. Opens for good once a player with Root
 // Access comes close.
 registerEntity("lockedGate", {
+  info: { name: "Locked Gate", desc: "Needs Root Access to open." },
   size: [32, 32],
   anchor: "topleft",
   layer: 2,

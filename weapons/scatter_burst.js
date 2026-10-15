@@ -1,5 +1,6 @@
 /* weapons/scatter_burst.js — five-pellet spread, short range. */
 registerWeapon("scatterBurst", {
+  desc: "A five-pellet spread at short range.",
   label: "SCATTER",
   color: "#ffb400",
   order: 3,

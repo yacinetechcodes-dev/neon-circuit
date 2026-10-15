@@ -36,8 +36,8 @@ function pixelSprite(ctx, rows, x, y, s, pal) {
 
 Object.assign(UPGRADE_INFO, {
   shrink: { name: "PIXEL SHRINK", desc: "Become tiny to fit through half-height gaps (press again to grow).", how: "{shrink}", action: "shrink", label: "MINI", world: 3 },
-  blockPlace: { name: "BLOCK PLACE", desc: "Drop a block to stand on; it lasts 4 s.", how: "{block}", action: "block", label: "BLK", world: 3 },
-  rewind: { name: "REWIND", desc: "Your first death in a level jumps you back ~2 s instead.", how: "automatic, once per level", world: 3 },
+  blockPlace: { name: "BLOCK PLACE", hud: "BLK", desc: "Drop a block to stand on; it lasts 4 s.", how: "{block}", action: "block", label: "BLK", world: 3 },
+  rewind: { name: "REWIND", hud: "RWND", desc: "Your first death in a level jumps you back ~2 s instead.", how: "automatic, once per level", world: 3 },
 });
 
 sfx.define("shrink", (s, t) => s.tone(t, { type: "square", f0: 880, f1: 1760, dur: 0.12, vol: 0.07 }), 0.08);
@@ -56,6 +56,7 @@ sfx.define("slime", (s, t) => s.tone(t, { type: "square", f0: 160, f1: 320, dur:
 // override: size 1-3 (3 = big, splits twice)
 const SLIME_DIMS = { 3: [30, 22], 2: [20, 15], 1: [12, 9] };
 registerEntity("pixelSlime", {
+  info: { name: "Pixel Slime", desc: "Splits into smaller slimes when hit." },
   size: [30, 22],
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 1, size: 3, color: PICO.lime },
   init(e) {
@@ -105,6 +106,7 @@ registerEntity("pixelSlime", {
 
 // ---------------------------------------------------------------- blockBat
 registerEntity("blockBat", {
+  info: { name: "Block Bat", desc: "Hangs from the ceiling, then swoops at you." },
   size: [26, 18],
   anchor: "top",
   props: { enemy: true, hurts: true, stompable: true, shootable: true, dashable: true, hp: 1,
@@ -150,6 +152,7 @@ registerEntity("blockBat", {
 // ---------------------------------------------------------------- bouncingSquare
 // overrides: speed, angle ("dl" | "dr" | "ul" | "ur" start direction)
 registerEntity("bouncingSquare", {
+  info: { name: "Bouncing Square", desc: "Armoured top: bounce off it, shoot it to break it." },
   size: [22, 22],
   anchor: "center",
   props: { enemy: true, hurts: true, stompable: "bounce", shootable: true, dashable: true, hp: 3, speed: 2.4, color: PICO.orange },
@@ -176,6 +179,7 @@ registerEntity("bouncingSquare", {
 
 // ---------------------------------------------------------------- vanishBlock
 registerEntity("vanishBlock", {
+  info: { name: "Vanishing Block", desc: "Blinks out a moment after you stand on it, then returns." },
   size: [32, 32],
   anchor: "topleft",
   props: { solid: true, delay: 28, away: 150, alwaysActive: true }, // timers keep running off-screen
@@ -211,6 +215,7 @@ registerEntity("vanishBlock", {
 // One char at the top of the wall; it reaches down to the floor and slides.
 // overrides: range (tiles, sign = direction), speed (px/frame), offset (frames)
 registerEntity("pixelWall", {
+  info: { name: "Pixel Wall", desc: "Slides back and forth. Don't get squeezed." },
   size: [32, 32],
   anchor: "topleft",
   layer: 1,
@@ -250,6 +255,7 @@ registerEntity("pixelWall", {
 // ---------------------------------------------------------------- halfBlock
 // arg: "high" (default, upper half of the cell) | "low" (lower half)
 registerEntity("halfBlock", {
+  info: { name: "Half Block", desc: "Half-height: shrink to slip under.", tip: false },
   size: [32, 16],
   anchor: "top",
   props: { solid: true },

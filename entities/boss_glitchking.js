@@ -14,6 +14,7 @@
 "use strict";
 
 registerEntity("glitchKing", {
+  info: { name: "Glitch King", desc: "Strike while it's dazed." },
   size: [96, 88],
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,

@@ -17,6 +17,7 @@
 const DAEMON_COLORS = ["#39ff88", "#ffd23d", "#ff3df0"];
 
 registerEntity("adminDaemon", {
+  info: { name: "Admin Daemon", desc: "Hit it while it compiles (its core opens)." },
   size: [84, 72],
   anchor: "center",
   props: {

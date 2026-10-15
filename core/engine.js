@@ -177,6 +177,7 @@ const Game = {
           { label: started ? label : "START", action: "continue" },
           { label: "WORLDS", action: "worlds" },
           { label: "CONTROLS", action: "controls" },
+          { label: "HELP / CODEX", action: "codex" },
           { label: "RESET", action: "reset" },
         ]);
         break;
@@ -184,13 +185,15 @@ const Game = {
       case "pause":
         this.menu = new Menu([
           { label: "RESUME", action: "resume" },
+          { label: "CONTROLS", action: "controls" },
+          { label: "HELP / CODEX", action: "codex" },
           { label: "CHECKPOINT", action: "checkpoint" },
           { label: "RESTART", action: "restart" },
           { label: this.soundLabel(), action: "mute" },
           ...(Input.touchMode && document.fullscreenEnabled ? [{ label: document.fullscreenElement ? "EXIT FULLSCREEN" : "FULLSCREEN", action: "fullscreen" }] : []),
           { label: "LEVELS", action: "select" },
           { label: "QUIT", action: "title" },
-        ], { width: 300 });
+        ], { width: 300, compact: true });
         break;
       case "gameover":
         this.menu = new Menu([
@@ -258,6 +261,7 @@ const Game = {
       weapons: this.weaponsFor(wi, li),
       weapon: Save.data.weapon,
     });
+    Guide.levelStart(this.world, wi, li);
     this.setState("play");
   },
 
@@ -292,12 +296,27 @@ const Game = {
     this.state = "play";
   },
 
+  /** Controls / Codex pages open from the title or the pause menu, and go back there. */
+  openPage(s) {
+    this.pageFrom = this.state === "pause" && this.world ? "pause" : "title";
+    if (s === "codex") { this.codexTab = this.codexTab || 0; this.codexPage = 0; }
+    this.setState(s);
+    if (this.pageFrom === "pause") this.fade = 0;
+  },
+  leavePage() {
+    sfx.play("menu");
+    this.setState(this.pageFrom === "pause" && this.world ? "pause" : "title");
+    if (this.state === "pause") { this.fade = 0; this.menu.sel = Math.max(0, this.menu.items.findIndex((i) => i.action === this.lastPage)); }
+  },
+  hit(c, r) { return r && c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h; },
+
   doAction(a) {
     switch (a) {
       case "continue": { const f = this.furthest(); this.startLevel(f.wi, f.li); break; }
       case "worlds": this.world = null; this.setState("worlds"); break;
       case "select": this.world = null; this.setState("select"); break;
-      case "controls": this.setState("controls"); break;
+      case "controls": this.openPage("controls"); break;
+      case "codex": this.openPage("codex"); break;
       case "reset": this.setState("reset"); break;
       case "doReset": Save.reset(); this.worldSel = this.levelSel = null; this.setState("title"); break;
       case "title": this.world = null; this.setState("title"); break;
@@ -335,8 +354,27 @@ const Game = {
         back: () => this.setState("worlds"),
       });
       case "controls":
-        if (Input.menuPressed("confirm") || Input.menuPressed("back") || Input.clicks.length) { sfx.play("menu"); this.setState("title"); }
+        this.lastPage = "controls";
+        if (Input.menuPressed("confirm") || Input.menuPressed("back") || Input.clicks.some((c) => this.hit(c, this.backRect))) this.leavePage();
         return;
+      case "codex": {
+        this.lastPage = "codex";
+        const n = Guide.TABS.length;
+        const tab = (d) => { this.codexTab = (this.codexTab + d + n) % n; this.codexPage = 0; sfx.play("menu"); };
+        if (Input.menuPressed("left") || Input.pressed("weaponPrev")) tab(-1);
+        if (Input.menuPressed("right") || Input.pressed("weaponNext")) tab(1);
+        if (Input.menuPressed("up")) this.codexPage = Math.max(0, this.codexPage - 1);
+        if (Input.menuPressed("down")) this.codexPage++;
+        if (Input.menuPressed("back")) { this.leavePage(); return; }
+        const R = this.codexRects || {};
+        for (const c of Input.clicks) {
+          if (this.hit(c, R.back)) { this.leavePage(); return; }
+          if (this.hit(c, R.prev)) { this.codexPage = Math.max(0, this.codexPage - 1); sfx.play("menu"); }
+          if (this.hit(c, R.next)) { this.codexPage++; sfx.play("menu"); }
+          (R.tabs || []).forEach((r, i) => { if (this.hit(c, r)) { this.codexTab = i; this.codexPage = 0; sfx.play("menu"); } });
+        }
+        return;
+      }
       case "pause":
         if (Input.pressed("pause")) { this.state = "play"; return; }
         break;
@@ -429,8 +467,8 @@ const Game = {
       case "pause":
         this.drawPlay(ctx, true);
         this.dim(ctx, 0.6);
-        UI.text(ctx, "PAUSED", VIEW_W / 2, 140, { size: 44, align: "center", glow: "#00f0ff" });
-        this.menu.draw(ctx, VIEW_W / 2, 180, this.time);
+        UI.text(ctx, "PAUSED", VIEW_W / 2, 84, { size: 40, align: "center", glow: "#00f0ff" });
+        this.menu.draw(ctx, VIEW_W / 2, 112, this.time);
         break;
       case "gameover":
         this.world.draw(ctx);
@@ -442,7 +480,8 @@ const Game = {
       case "victory": this.drawVictory(ctx); break;
       case "worlds": this.drawMenuBg(ctx); this.drawWorlds(ctx); break;
       case "select": this.drawMenuBg(ctx); this.drawSelect(ctx); break;
-      case "controls": this.drawMenuBg(ctx); this.drawControls(ctx); break;
+      case "controls": this.drawPageBg(ctx); this.drawControls(ctx); break;
+      case "codex": this.drawPageBg(ctx); this.drawCodex(ctx); break;
       case "reset":
         this.drawMenuBg(ctx);
         UI.text(ctx, "ERASE PROGRESS?", VIEW_W / 2, 200, { size: 32, align: "center", color: "#ff4d6d", glow: "#ff3355" });
@@ -513,23 +552,83 @@ const Game = {
     }
   },
 
+  drawPageBg(ctx) {
+    if (this.pageFrom === "pause" && this.world) { this.world.draw(ctx); this.dim(ctx, 0.88); }
+    else this.drawMenuBg(ctx);
+  },
+
+  /** Back button shared by the pages. */
+  drawBack(ctx, x, y) {
+    this.backRect = { x, y, w: 150, h: 36 };
+    UI.panel(ctx, x, y, 150, 36);
+    UI.text(ctx, "◀ BACK", x + 75, y + 24, { size: 15, align: "center" });
+    return this.backRect;
+  },
+
+  /** Every action, keyboard and touch — built from Guide.controlRows(), so new
+   *  abilities appear automatically. */
   drawControls(ctx) {
-    UI.text(ctx, "CONTROLS", VIEW_W / 2, 80, { size: 36, align: "center", glow: "#00f0ff" });
-    UI.panel(ctx, 240, 110, 480, 326);
-    const rows = [
-      ["MOVE", "← → / A D"],
-      ["JUMP", "SPACE / ↑ / W / Z"],
-      ["DROP", "↓ + JUMP"],
-      ["DASH", "SHIFT / X"],
-      ["FIRE", "F / C / J"],
-      ["WEAPON", "Q / E / 1-9"],
-      ["PAUSE", "ESC / P"],
-      ["SOUND", "M"],
-    ];
-    rows.forEach(([a, b], i) => {
-      UI.text(ctx, a, 290, 150 + i * 36, { size: 16, color: "#00f0ff" });
-      UI.text(ctx, b, 420, 150 + i * 36, { size: 16, weight: "normal" });
+    UI.text(ctx, "CONTROLS", VIEW_W / 2, 46, { size: 30, align: "center", glow: "#00f0ff" });
+    const p = this.pageFrom === "pause" && this.world ? this.world.player : null;
+    const { base, abil } = Guide.controlRows(p);
+    const touch = Input.touchMode;
+    const table = (x, w, title, rows) => {
+      UI.panel(ctx, x, 64, w, 404);
+      UI.text(ctx, title, x + 14, 88, { size: 13, color: "#ffd23d" });
+      UI.text(ctx, "KEYBOARD", x + w * 0.5, 88, { size: 11, color: touch ? "#4a5a70" : "#a8c8e0" });
+      UI.text(ctx, "TOUCH", x + w * 0.8, 88, { size: 11, color: touch ? "#a8c8e0" : "#4a5a70" });
+      rows.forEach((r, i) => {
+        const y = 114 + i * 28;
+        UI.text(ctx, r.name, x + 14, y, { size: 12, color: r.dim ? "#4a5a70" : "#00f0ff" });
+        UI.text(ctx, r.key, x + w * 0.5, y, { size: 12, weight: "normal", color: r.dim ? "#4a5a70" : touch ? "#7f9fc0" : "#dff6ff" });
+        UI.text(ctx, r.touch, x + w * 0.8, y, { size: 12, weight: "normal", color: r.dim ? "#4a5a70" : touch ? "#dff6ff" : "#7f9fc0" });
+      });
+    };
+    table(24, 440, "BASICS", base);
+    table(484, 452, "ABILITIES", abil);
+    const ws = p ? p.weapons : Save.data.weapons;
+    if (ws && ws.length) UI.text(ctx, `WEAPONS: ${ws.map((n) => (Registry.weapons[n] || {}).label || n).join("  ")}`, 38, 114 + base.length * 28 + 8, { size: 11, weight: "normal", color: "#a8c8e0" });
+    this.drawBack(ctx, VIEW_W / 2 - 75, 484);
+  },
+
+  /** Help / Codex: tabs of everything discovered so far, icon + one line each. */
+  drawCodex(ctx) {
+    UI.text(ctx, "HELP / CODEX", VIEW_W / 2, 42, { size: 28, align: "center", glow: "#00f0ff" });
+    const tabs = Guide.TABS, tw = 126, tx0 = VIEW_W / 2 - (tabs.length * tw) / 2;
+    const R = (this.codexRects = { tabs: [] });
+    tabs.forEach((t, i) => {
+      const r = { x: tx0 + i * tw + 2, y: 56, w: tw - 4, h: 30 };
+      R.tabs.push(r);
+      const on = i === this.codexTab;
+      ctx.fillStyle = on ? "rgba(0,240,255,0.18)" : "rgba(8,12,30,0.75)";
+      U.roundRect(ctx, r.x, r.y, r.w, r.h, 6); ctx.fill();
+      ctx.strokeStyle = on ? "#00f0ff" : "rgba(0,240,255,0.25)"; ctx.lineWidth = on ? 2 : 1; ctx.stroke();
+      UI.text(ctx, t, r.x + r.w / 2, r.y + 20, { size: 12, align: "center", color: on ? "#ffffff" : "#a8c8e0" });
     });
+    const { total, list } = Guide.entries(tabs[this.codexTab]);
+    const per = 10, pages = Math.max(1, Math.ceil(list.length / per));
+    this.codexPage = U.clamp(this.codexPage, 0, pages - 1);
+    UI.text(ctx, `${list.length} / ${total} FOUND`, VIEW_W - 30, 106, { size: 11, align: "right", color: "#7f9fc0" });
+    if (!list.length) UI.text(ctx, "Nothing here yet. Keep exploring!", VIEW_W / 2, 260, { size: 16, align: "center", color: "#7f9fc0" });
+    list.slice(this.codexPage * per, this.codexPage * per + per).forEach((en, i) => {
+      const x = 30 + (i % 2) * 455, y = 114 + Math.floor(i / 2) * 70;
+      UI.panel(ctx, x, y, 445, 62, "#00f0ff", 0.72);
+      ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(x + 8, y + 7, 48, 48);
+      en.icon(ctx, x + 32, y + 31);
+      if (en.name) UI.text(ctx, en.name, x + 66, y + 22, { size: 14, color: "#00f0ff" });
+      ctx.font = `normal 12px ${FONT}`;
+      const lines = UI.wrap(ctx, en.desc, 365).slice(0, en.name ? 2 : 3);
+      lines.forEach((l, k) => UI.text(ctx, l, x + 66, y + (en.name ? 40 : 24) + k * 15, { size: 12, weight: "normal", color: "#dff6ff" }));
+    });
+    this.drawBack(ctx, 30, 482);
+    R.back = this.backRect;
+    if (pages > 1) {
+      R.prev = { x: VIEW_W / 2 - 110, y: 482, w: 44, h: 36 };
+      R.next = { x: VIEW_W / 2 + 66, y: 482, w: 44, h: 36 };
+      for (const [r, t] of [[R.prev, "◀"], [R.next, "▶"]]) { UI.panel(ctx, r.x, r.y, r.w, r.h); UI.text(ctx, t, r.x + r.w / 2, r.y + 24, { size: 15, align: "center" }); }
+      UI.text(ctx, `${this.codexPage + 1} / ${pages}`, VIEW_W / 2, 506, { size: 14, align: "center" });
+    } else { R.prev = R.next = null; }
+    UI.text(ctx, Input.touchMode ? "tap a tab" : "← → tabs   ↑ ↓ pages   ESC back", VIEW_W - 30, 506, { size: 11, align: "right", color: "#4a5a70", weight: "normal" });
   },
 
   /**

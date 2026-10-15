@@ -7,6 +7,7 @@
 
 // Gravity flips upward inside the field: you fall to the ceiling and walk on it.
 registerEntity("flipField", {
+  info: { name: "Flip Field", desc: "Gravity points up inside it.", tip: false },
   size: [32, 32],
   anchor: "topleft",
   layer: 0,
@@ -33,6 +34,7 @@ registerEntity("flipField", {
 
 // Gravity is much stronger inside: shorter jumps, faster falls.
 registerEntity("heavyField", {
+  info: { name: "Heavy Field", desc: "Much stronger gravity inside: short jumps." },
   size: [32, 32],
   anchor: "topleft",
   layer: 0,

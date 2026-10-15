@@ -14,6 +14,7 @@
 "use strict";
 
 registerEntity("kernel", {
+  info: { name: "The Kernel", desc: "Destroy its shield nodes, then hit the open core." },
   size: [80, 80],
   anchor: "center",
   props: {

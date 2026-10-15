@@ -29,6 +29,7 @@ function channelOn(world, ch) {
 
 // ------------------------------------------------------------- teleporter
 registerEntity("teleporter", {
+  info: { name: "Teleporter", desc: "Step on a pad to jump to its twin.", tip: false },
   size: [26, 40],
   layer: 0,
   props: { alwaysActive: true },
@@ -75,6 +76,7 @@ registerEntity("teleporter", {
 
 // ------------------------------------------------------------- switch
 registerEntity("switch", {
+  info: { name: "Switch", desc: "Opens doors of its colour (some only for a few seconds).", tip: false },
   size: [26, 14],
   props: { time: 0, alwaysActive: true },
   init(e, world, arg) { e.ch = arg || "a"; e.color = CHANNEL_COLORS[e.ch] || "#ffffff"; },
@@ -107,6 +109,7 @@ registerEntity("switch", {
 
 // ------------------------------------------------------------- door
 registerEntity("door", {
+  info: { name: "Door", desc: "Opens with the switch of the same colour.", tip: false },
   size: [32, 32],
   anchor: "topleft",
   layer: 2,

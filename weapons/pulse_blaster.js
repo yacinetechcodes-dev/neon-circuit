@@ -1,5 +1,6 @@
 /* weapons/pulse_blaster.js — fast, weak, unlimited. */
 registerWeapon("pulseBlaster", {
+  desc: "Fast, weak shots; never runs out.",
   label: "PULSE",
   color: "#7dff4a",
   order: 1,

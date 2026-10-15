@@ -11,6 +11,7 @@
 "use strict";
 
 registerEntity("warden", {
+  info: { name: "Core Warden", desc: "Bait its charge into a wall, then hit it while it's stunned." },
   size: [76, 60],
   props: {
     enemy: true, hurts: true, isBoss: true, alwaysActive: true, alwaysDraw: true,

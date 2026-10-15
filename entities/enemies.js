@@ -43,6 +43,7 @@ const ENEMY_BASE = { enemy: true, hurts: true, stompable: true, shootable: true,
 
 // ---------------------------------------------------------------- patrolBot
 registerEntity("patrolBot", {
+  info: { name: "Patrol Bot", desc: "Walks back and forth. Stomp, shoot or dash it." },
   size: [28, 24],
   props: Object.assign({}, ENEMY_BASE, { speed: 1.0, color: "#ff3df0" }),
   init(e) { e.dir = e.opts.dir === "right" ? 1 : -1; },
@@ -67,6 +68,7 @@ registerEntity("patrolBot", {
 
 // ---------------------------------------------------------------- drone
 registerEntity("drone", {
+  info: { name: "Drone", desc: "Chases you when you get close. Stomp or shoot it." },
   size: [26, 22],
   anchor: "center",
   props: Object.assign({}, ENEMY_BASE, { speed: 1.3, range: 3, sight: 6, color: "#ffb400" }),
@@ -106,6 +108,7 @@ registerEntity("drone", {
 // ---------------------------------------------------------------- turret
 // overrides: rate (s), range (tiles), bulletSpeed, dir ("left"|"right"|"up"|"down" = fixed aim)
 registerEntity("turret", {
+  info: { name: "Turret", desc: "Fires at you: hide behind blocks, then shoot it." },
   size: [30, 22],
   props: Object.assign({}, ENEMY_BASE, {
     hp: 2, rate: 2.2, range: 12, bulletSpeed: 3.6, color: "#ff6a2a",
@@ -167,6 +170,7 @@ registerEntity("turret", {
 
 // ---------------------------------------------------------------- charger
 registerEntity("charger", {
+  info: { name: "Charger", desc: "Armoured. Dodge its charge so it crashes, then hit it." },
   size: [34, 26],
   props: Object.assign({}, ENEMY_BASE, {
     speed: 0.8, chargeSpeed: 8, sight: 9, color: "#ff3355",
@@ -252,6 +256,7 @@ registerEntity("charger", {
 
 // ---------------------------------------------------------------- sentinel
 registerEntity("sentinel", {
+  info: { name: "Sentinel", desc: "Its front shield blocks shots and dashes: hit it from behind." },
   size: [28, 32],
   props: Object.assign({}, ENEMY_BASE, { speed: 0.6, color: "#9d6bff" }),
   init(e) { e.dir = e.opts.dir === "right" ? 1 : -1; },
@@ -286,6 +291,7 @@ registerEntity("sentinel", {
 
 // ---------------------------------------------------------------- spiker
 registerEntity("spiker", {
+  info: { name: "Spiker", desc: "Spiked top, don't stomp it. Shoot or dash it." },
   size: [30, 20],
   props: Object.assign({}, ENEMY_BASE, { hp: 2, speed: 0.7, color: "#7dff4a", stompable: false }),
   init(e) { e.dir = e.opts.dir === "right" ? 1 : -1; },
