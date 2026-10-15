@@ -8,6 +8,10 @@
  * ========================================================================= */
 "use strict";
 
+// TESTING: every world and level is open. Set to false for release, so
+// worlds unlock by beating the previous boss and levels one by one.
+const UNLOCK_ALL = true;
+
 // Entity types every world may use without listing them.
 const ALWAYS_ALLOWED = ["core", "secretCore", "checkpoint", "exit", "powerup", "upgrade", "weapon", "fakeWall", "gate"];
 
@@ -122,18 +126,18 @@ const Game = {
 
   // ------------------------------------------------------------- progress
   worldUnlocked(wi) {
-    if (this.debug || wi === 0) return true;
+    if (this.debug || UNLOCK_ALL || wi === 0) return true;
     const prev = Registry.worlds[wi - 1];
     return !!(prev && Save.world(prev.id).bossBeaten);
   },
   levelUnlocked(wi, li) {
     const w = Registry.worlds[wi];
-    return this.debug || (!!w && this.worldUnlocked(wi) && li < Save.world(w.id).unlocked);
+    return this.debug || UNLOCK_ALL || (!!w && this.worldUnlocked(wi) && li < Save.world(w.id).unlocked);
   },
   /** Furthest playable spot: last unlocked world, its last unlocked level. */
   furthest() {
     let wi = 0;
-    for (let i = 0; i < Registry.worlds.length; i++) if (this.worldUnlocked(i)) wi = i;
+    for (let i = 0; i < Registry.worlds.length; i++) if (i === 0 || Save.world(Registry.worlds[i - 1].id).bossBeaten) wi = i;
     const w = Registry.worlds[wi];
     const n = w ? w.levelDefs.length : 1;
     return { wi, li: w ? Math.max(0, Math.min(Save.world(w.id).unlocked, n) - 1) : 0 };
