@@ -1,41 +1,63 @@
 /* =========================================================================
- * core/engine.js — main loop and game-state machine (title, level select,
- * play, pause, game over, level complete, victory).
+ * core/engine.js — main loop and game-state machine
+ * (title, world select, level select, play, pause, game over, level
+ * complete, victory).
+ *
+ * Structure: worlds (worlds/*.js) contain levels (levels/worldNN/*.js).
+ * A world unlocks when the previous world's boss level is beaten.
  * ========================================================================= */
 "use strict";
 
+// TESTING: every world and level is open. Set to false for release, so
+// worlds unlock by beating the previous boss and levels one by one.
+const UNLOCK_ALL = true;
+
+// Entity types every world may use without listing them.
+const ALWAYS_ALLOWED = ["core", "secretCore", "checkpoint", "exit", "powerup", "upgrade", "weapon", "fakeWall", "gate", "sign", "prop"];
+
 const Game = {
   state: "boot",
-  world: null,
-  levelIndex: 0,
+  world: null,         // the running level (class World)
+  worldIndex: 0,       // which world (index into Registry.worlds)
+  levelIndex: 0,       // which level inside that world
   time: 0,
   menu: null,
   fade: 0,
-  levelErrors: {},     // level index → [error strings]
+  levelErrors: {},     // "worldIndex:levelIndex" → [error strings]
+  worldErrors: {},     // worldIndex → [error strings]
   loadErrors: [],      // files that failed to load
   debug: typeof location !== "undefined" && /[?&]debug/.test(location.search),
   fps: 60, _fpsFrames: 0, _fpsTime: 0,
 
   isPlaying() { return this.state === "play"; },
+  /** Sections of a world's level (one long level per world). */
+  sectionsOf(wi = this.worldIndex) {
+    const d = this.levelsOf(wi)[0];
+    return (d && d.sections && d.sections.length) ? d.sections : d ? [{ name: d.name, from: 0, to: 1e9 }] : [];
+  },
+  worlds() { return Registry.worlds; },
+  worldDef(wi = this.worldIndex) { return Registry.worlds[wi]; },
+  levelsOf(wi = this.worldIndex) { const w = Registry.worlds[wi]; return w ? w.levelDefs : []; },
 
   // ------------------------------------------------------------- boot
   init(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     Input.init(canvas);
-    if (this.debug) Object.assign(Input.keyMap, { KeyG: "debugGod", KeyN: "debugNext" });
+    if (this.debug) Object.assign(Input.keyMap, { F9: "debugGod", F10: "debugNext" });
     Save.load();
+    Gfx.init();
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    window.addEventListener("orientationchange", () => setTimeout(() => this.resize(), 200));
   },
 
-  /** Called by the loader once every entity and level file has loaded. */
+  /** Called by the loader once every entity, world and level file has loaded. */
   start() {
-    Registry.levels.forEach((def, i) => {
-      const { errors } = LevelLoader.validate(def);
-      if (errors.length) this.levelErrors[i] = errors;
-    });
-    const firstTheme = (Registry.levels[0] && Registry.levels[0].theme) || {};
+    this.validateWorlds();
+    this.repairProgress();
+    const w0 = Registry.worlds[0];
+    const firstTheme = Object.assign({}, (w0 && w0.theme) || {}, (w0 && w0.levelDefs[0] && w0.levelDefs[0].theme) || {});
     this.menuBg = new Background(Object.assign({ bgTop: "#050818", bgBottom: "#0a1a3a", accent: "#00f0ff", gridColor: "#0b3a5a", style: "boot" }, firstTheme), 3);
     this.setState("title");
     if (this.debug) this.debugStart();
@@ -60,11 +82,45 @@ const Game = {
     requestAnimationFrame(frame);
   },
 
+  /** A world counts as beaten if its boss level was ever cleared (repairs saves
+   *  made while a world file used an older format and the win wasn't recorded). */
+  repairProgress() {
+    let changed = false;
+    for (const w of Registry.worlds) {
+      const li = w.boss && w.boss.level ? (w.levels || []).indexOf(w.boss.level) : -1;
+      const def = li >= 0 ? w.levelDefs[li] : null;
+      if (def && Save.best(w.id, def.id) && !Save.world(w.id).bossBeaten) { Save.world(w.id).bossBeaten = true; changed = true; }
+    }
+    if (changed) Save.write();
+  },
+
+  /** Validate every world and level; log clear errors / warnings. */
+  validateWorlds() {
+    Registry.worlds.forEach((w, wi) => {
+      const tag = `[world ${w.id} "${w.name}"]`;
+      const errs = [];
+      if (!w.levels || !w.levels.length) errs.push("lists no levels.");
+      if (w.levelDefs.length !== (w.levels || []).length) errs.push(`expected ${(w.levels || []).length} levels, loaded ${w.levelDefs.length} (see loader errors).`);
+      if (w.boss && w.boss.level && !(w.levels || []).includes(w.boss.level)) errs.push(`boss level "${w.boss.level}" is not in its levels list.`);
+      for (const e of errs) console.error(`${tag} ERROR: ${e}`);
+      if (errs.length) this.worldErrors[wi] = errs;
+      const allowed = new Set(ALWAYS_ALLOWED.concat(w.enemies || [], w.hazards || [], w.boss && w.boss.entity ? [w.boss.entity] : []));
+      w.levelDefs.forEach((def, li) => {
+        const { errors } = LevelLoader.validate(def);
+        if (errors.length) { this.levelErrors[wi + ":" + li] = errors; return; }
+        // Types the level uses but its world doesn't list (warning only).
+        const used = new Set(LevelLoader.parse(def).spawns.map((s) => s.name));
+        const extra = [...used].filter((n) => !allowed.has(n));
+        if (extra.length && (w.enemies || w.hazards)) console.warn(`${tag} level "${def.name}" uses types not listed by the world: ${extra.join(", ")}`);
+      });
+    });
+  },
+
   resize() {
     const ww = window.innerWidth, wh = window.innerHeight;
     const scale = Math.min(ww / VIEW_W, wh / VIEW_H);
     const cssW = Math.floor(VIEW_W * scale), cssH = Math.floor(VIEW_H * scale);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, Gfx.q.dpr);
     this.canvas.style.width = cssW + "px";
     this.canvas.style.height = cssH + "px";
     this.canvas.width = Math.round(cssW * dpr);
@@ -74,67 +130,139 @@ const Game = {
     if (Input.touchMode) Input.layoutButtons();
   },
 
+  // ------------------------------------------------------------- progress
+  worldUnlocked(wi) {
+    if (this.debug || UNLOCK_ALL || wi === 0) return true;
+    const prev = Registry.worlds[wi - 1];
+    return !!(prev && Save.world(prev.id).bossBeaten);
+  },
+  levelUnlocked(wi, li) {
+    const w = Registry.worlds[wi];
+    return this.debug || UNLOCK_ALL || (!!w && this.worldUnlocked(wi) && li < Save.world(w.id).unlocked);
+  },
+  /** Max health in a world: 3, +1 every 2 worlds (3,3,4,4,5,5…). Saved once
+   *  earned and carried over (Save.data.maxHp). */
+  maxHpFor(wi) {
+    return 3 + Math.floor(wi / 2);
+  },
+  /** Section reached in a world level: remembered for the section select. */
+  onSectionReached(world, i) {
+    const w = this.worldDef();
+    if (!w || world !== this.world) return;
+    const rec = Save.world(w.id);
+    if ((rec.reached || 0) < i) { rec.reached = i; Save.write(); }
+  },
+  sectionUnlocked(wi, si) {
+    const w = Registry.worlds[wi];
+    return si === 0 || this.debug || UNLOCK_ALL || (!!w && (Save.world(w.id).reached || 0) >= si);
+  },
+  /** Furthest playable spot: last unlocked world, its last unlocked level. */
+  furthest() {
+    let wi = 0;
+    for (let i = 0; i < Registry.worlds.length; i++) if (i === 0 || Save.world(Registry.worlds[i - 1].id).bossBeaten) wi = i;
+    const w = Registry.worlds[wi];
+    const n = w ? w.levelDefs.length : 1;
+    return { wi, li: w ? Math.max(0, Math.min(Save.world(w.id).unlocked, n) - 1) : 0 };
+  },
+  isBossLevel(wi, li) {
+    const w = Registry.worlds[wi];
+    return !!(w && w.boss && w.boss.level === (w.levels || [])[li]);
+  },
+
+  /** Abilities for a level: saved + earlier worlds' + earlier levels' in this world. */
+  abilitiesFor(wi, li) {
+    const ups = new Set(Save.data.upgrades);
+    for (let i = 0; i < wi; i++) for (const a of Registry.worlds[i].abilities || []) ups.add(a);
+    this.levelsOf(wi).slice(0, li).forEach((d) => (d.unlocks || []).forEach((u) => ups.add(u)));
+    return [...ups];
+  },
+  /** Weapons for a level: saved + rewards of everything before it. */
+  weaponsFor(wi, li) {
+    const ws = new Set(Save.data.weapons);
+    const rewards = (w, upto) => {
+      const r = (w.weapons && w.weapons.rewards) || {};
+      ((w.weapons && w.weapons.start) || []).forEach((x) => ws.add(x));
+      (w.levels || []).slice(0, upto).forEach((f) => (r[f] || []).forEach((x) => ws.add(x)));
+    };
+    for (let i = 0; i < wi; i++) rewards(Registry.worlds[i], Infinity);
+    rewards(Registry.worlds[wi], li);
+    // Abilities that come with a weapon (Pulse Shot → Pulse Blaster).
+    for (const a of this.abilitiesFor(wi, li)) { const g = UPGRADE_INFO[a] && UPGRADE_INFO[a].weapon; if (g) ws.add(g); }
+    return [...ws];
+  },
+
   // ------------------------------------------------------------- states
   setState(s) {
     this.state = s;
     this.fade = 1;
     this.menu = null;
-    const L = Registry.levels;
     switch (s) {
       case "title": {
-        const started = Save.data.unlocked > 1 || Object.keys(Save.data.best).length > 0;
-        const cont = Math.min(Save.data.unlocked, L.length) - 1;
+        const started = Object.keys(Save.data.best).length > 0;
+        const f = this.furthest();
+        const label = `CONTINUE  WORLD ${f.wi + 1}`;
         this.menu = new Menu([
-          { label: started ? `CONTINUE  (LEVEL ${cont + 1})` : "START GAME", action: "continue" },
-          { label: "LEVEL SELECT", action: "select" },
+          { label: started ? label : "START", action: "continue" },
+          { label: "WORLDS", action: "worlds" },
           { label: "CONTROLS", action: "controls" },
-          { label: "RESET PROGRESS", action: "reset" },
+          { label: "HELP / CODEX", action: "codex" },
+          { label: "RESET", action: "reset" },
         ]);
         break;
       }
       case "pause":
         this.menu = new Menu([
           { label: "RESUME", action: "resume" },
-          { label: "RESTART FROM CHECKPOINT", action: "checkpoint" },
-          { label: "RESTART LEVEL", action: "restart" },
+          { label: "CONTROLS", action: "controls" },
+          { label: "HELP / CODEX", action: "codex" },
+          { label: "CHECKPOINT", action: "checkpoint" },
+          { label: "RESTART", action: "restart" },
           { label: this.soundLabel(), action: "mute" },
-          { label: "LEVEL SELECT", action: "select" },
-          { label: "QUIT TO TITLE", action: "title" },
-        ], { width: 380 });
+          ...(Input.touchMode && document.fullscreenEnabled ? [{ label: document.fullscreenElement ? "EXIT FULLSCREEN" : "FULLSCREEN", action: "fullscreen" }] : []),
+          { label: "WORLDS", action: "worlds" },
+          { label: "QUIT", action: "title" },
+        ], { width: 300, compact: true });
         break;
       case "gameover":
         this.menu = new Menu([
-          { label: "RETRY FROM CHECKPOINT", action: "checkpoint" },
-          { label: "RESTART LEVEL", action: "restart" },
-          { label: "LEVEL SELECT", action: "select" },
-          { label: "QUIT TO TITLE", action: "title" },
-        ], { width: 380 });
+          { label: "RESTART WORLD", action: "restartAll" },
+          { label: "WORLDS", action: "worlds" },
+          { label: "QUIT", action: "title" },
+        ], { width: 300 });
         break;
       case "complete": {
-        const last = this.levelIndex >= L.length - 1;
-        this.menu = new Menu(last
-          ? [{ label: "CONTINUE", action: "victory" }, { label: "REPLAY LEVEL", action: "restart" }]
-          : [{ label: "NEXT LEVEL", action: "next" }, { label: "REPLAY LEVEL", action: "restart" }, { label: "LEVEL SELECT", action: "select" }],
-          { width: 300 });
+        const lastInWorld = this.levelIndex >= this.levelsOf().length - 1;
+        const nextWorld = Registry.worlds[this.worldIndex + 1];
+        let items;
+        if (!lastInWorld) items = [{ label: "NEXT", action: "next" }, { label: "REPLAY", action: "restartAll" }, { label: "WORLDS", action: "worlds" }];
+        else if (nextWorld && this.worldUnlocked(this.worldIndex + 1)) items = [{ label: "NEXT WORLD", action: "nextWorld" }, { label: "REPLAY", action: "restartAll" }, { label: "WORLDS", action: "worlds" }];
+        else items = [{ label: "CONTINUE", action: nextWorld ? "worlds" : "victory" }, { label: "REPLAY", action: "restartAll" }];
+        this.menu = new Menu(items, { width: 300 });
         break;
       }
       case "victory":
-        this.menu = new Menu([{ label: "RETURN TO TITLE", action: "title" }]);
+        this.menu = new Menu([{ label: "TITLE", action: "title" }]);
         break;
       case "reset":
         this.menu = new Menu([
-          { label: "NO, KEEP MY PROGRESS", action: "title" },
-          { label: "YES, ERASE EVERYTHING", action: "doReset" },
-        ], { width: 380 });
+          { label: "NO", action: "title" },
+          { label: "ERASE", action: "doReset" },
+        ], { width: 240 });
         break;
-      case "select":
-        this.selIndex = U.clamp(this.selIndex == null ? Math.min(Save.data.unlocked, L.length) - 1 : this.selIndex, 0, Math.max(0, L.length - 1));
+      case "worlds":
+        this.selIndex = U.clamp(this.worldSel == null ? this.furthest().wi : this.worldSel, 0, Math.max(0, Registry.worlds.length - 1));
         this.cardRects = [];
         break;
+      case "select": {
+        const n = this.sectionsOf().length;
+        this.selIndex = U.clamp(this.sectionSel || 0, 0, Math.max(0, n - 1));
+        this.cardRects = [];
+        break;
+      }
     }
   },
 
-  soundLabel() { return sfx.muted ? "SOUND: OFF  (M)" : "SOUND: ON  (M)"; },
+  soundLabel() { return sfx.muted ? "SOUND OFF" : "SOUND ON"; },
 
   /** Mute toggle shared by the M key and the pause-menu button. */
   toggleMute() {
@@ -146,53 +274,103 @@ const Game = {
     if (this.state === "play" && this.world) this.world.showHint(muted ? "SOUND OFF" : "SOUND ON", 1.2);
   },
 
-  isUnlocked(i) {
-    return this.debug || i < Save.data.unlocked;
-  },
-
-  startLevel(index) {
-    const def = Registry.levels[index];
+  startLevel(wi, li, si = 0) {
+    const wdef = Registry.worlds[wi];
+    const def = wdef && wdef.levelDefs[li];
     if (!def) { this.setState("title"); return; }
-    if (this.levelErrors[index]) { this.selIndex = index; this.setState("select"); return; }
-    // Upgrades: everything saved + everything earlier levels grant (so level
-    // select can never put you in a level you lack the tools for).
-    const ups = new Set(Save.data.upgrades);
-    for (let i = 0; i < index; i++) for (const u of Registry.levels[i].unlocks || []) ups.add(u);
-    this.levelIndex = index;
-    this.world = new World(def, index, [...ups]);
+    if (this.levelErrors[wi + ":" + li]) { this.worldIndex = wi; this.levelSel = li; this.setState("select"); return; }
+    this.worldIndex = wi;
+    this.levelIndex = li;
+    this.levelSel = li;
+    this.sectionSel = si;
+    this.world = new World(def, li, this.abilitiesFor(wi, li), {
+      worldDef: wdef,
+      weapons: this.weaponsFor(wi, li),
+      weapon: Save.data.weapon,
+      lives: 5,
+      maxHp: this.maxHpFor(wi),
+      section: si,
+    });
+    Guide.levelStart(this.world, wi, li);
     this.setState("play");
   },
 
-  onPlayerDied() { this.setState("gameover"); },
+  /** A death costs a life and returns you to the last checkpoint; with no
+   *  lives left the world's level starts over from the beginning. */
+  onPlayerDied(world) {
+    if (world && world.lives > 1) {
+      world.lives--;
+      world.respawn(true);
+      world.banner = { text: `${world.lives} ${world.lives === 1 ? "LIFE" : "LIVES"} LEFT`, sub: "", t: 90, max: 90, color: "#ff4d6d" };
+      return;
+    }
+    this.setState("gameover");
+  },
 
   onLevelComplete(world) {
-    const def = world.def;
+    const def = world.def, wdef = this.worldDef();
     const stats = {
       time: world.levelTime / FPS, cores: world.cores, coresTotal: world.coresTotal,
       secrets: world.secrets, secretsTotal: world.secretsTotal, deaths: world.deaths,
     };
     const unlocks = (def.unlocks || []).concat(world.pickedUpgrades || []);
+    const file = (wdef.levels || [])[this.levelIndex];
+    const weapons = (((wdef.weapons && wdef.weapons.rewards) || {})[file] || []).concat(world.pickedWeapons || []);
     const newUnlocks = unlocks.filter((u) => !Save.data.upgrades.includes(u));
-    const isBest = Save.recordLevel(world.index, def.id, stats, unlocks);
-    if (world.index >= Registry.levels.length - 1) { Save.data.finished = true; Save.write(); }
-    this.completeInfo = { stats, newUnlocks, isBest, name: def.name };
+    const newWeapons = weapons.filter((w) => !Save.data.weapons.includes(w));
+    const bossBeaten = this.isBossLevel(this.worldIndex, this.levelIndex);
+    const firstBossWin = bossBeaten && !Save.world(wdef.id).bossBeaten;
+    const isBest = Save.recordLevel({ worldId: wdef.id, index: this.levelIndex, levelId: def.id, stats, unlocks, weapons, bossBeaten });
+    // Clearing a world earns the health of the next tier (every 2 worlds), kept for good.
+    if (bossBeaten) { Save.data.maxHp = Math.max(Save.data.maxHp || 3, 3 + Math.floor((this.worldIndex + 1) / 2)); Save.write(); }
+    this.completeInfo = { stats, newUnlocks, newWeapons, isBest, name: def.name, worldClear: firstBossWin };
     this.setState("complete");
   },
 
+  /** Phones: fullscreen hides the browser bars (and lets us ask for landscape). */
+  toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen().then(() => {
+        if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(() => {});
+      }).catch(() => {});
+    } catch (e) { /* not supported */ }
+    this.state = "play";
+  },
+
+  /** Controls / Codex pages open from the title or the pause menu, and go back there. */
+  openPage(s) {
+    this.pageFrom = this.state === "pause" && this.world ? "pause" : "title";
+    if (s === "codex") { this.codexTab = this.codexTab || 0; this.codexPage = 0; }
+    this.setState(s);
+    if (this.pageFrom === "pause") this.fade = 0;
+  },
+  leavePage() {
+    sfx.play("menu");
+    this.setState(this.pageFrom === "pause" && this.world ? "pause" : "title");
+    if (this.state === "pause") { this.fade = 0; this.menu.sel = Math.max(0, this.menu.items.findIndex((i) => i.action === this.lastPage)); }
+  },
+  hit(c, r) { return r && c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h; },
+
   doAction(a) {
     switch (a) {
-      case "continue": this.startLevel(Math.min(Save.data.unlocked, Registry.levels.length) - 1); break;
-      case "select": this.setState("select"); break;
-      case "controls": this.setState("controls"); break;
+      case "continue": { const f = this.furthest(); this.startLevel(f.wi, f.li); break; }
+      case "worlds": this.world = null; this.setState("worlds"); break;
+      case "select": this.world = null; this.setState("select"); break;
+      case "controls": this.openPage("controls"); break;
+      case "codex": this.openPage("codex"); break;
       case "reset": this.setState("reset"); break;
-      case "doReset": Save.reset(); this.selIndex = null; this.setState("title"); break;
+      case "doReset": Save.reset(); this.worldSel = this.levelSel = null; this.setState("title"); break;
       case "title": this.world = null; this.setState("title"); break;
       case "resume": this.state = "play"; break;
       case "checkpoint": this.world.respawn(true); this.state = "play"; break;
-      case "restart": this.startLevel(this.levelIndex); break;
-      case "next": this.startLevel(this.levelIndex + 1); break;
+      case "restart": this.startLevel(this.worldIndex, this.levelIndex, this.sectionSel || 0); break;
+      case "restartAll": this.startLevel(this.worldIndex, this.levelIndex, 0); break;
+      case "next": this.startLevel(this.worldIndex, this.levelIndex + 1); break;
+      case "nextWorld": this.startLevel(this.worldIndex + 1, 0); break;
       case "victory": this.setState("victory"); break;
       case "mute": this.toggleMute(); break;
+      case "fullscreen": this.toggleFullscreen(); break;
     }
   },
 
@@ -208,10 +386,38 @@ const Game = {
         this.world.update();
         return;
       }
-      case "select": return this.updateSelect();
+      case "worlds": return this.updateCards(Registry.worlds.length, {
+        locked: (i) => !this.worldUnlocked(i) || !!this.worldErrors[i],
+        pick: (i) => { this.worldSel = i; this.worldIndex = i; this.levelSel = null; this.setState("select"); },
+        back: () => this.setState("title"),
+      });
+      case "select": return this.updateCards(this.sectionsOf().length, {
+        locked: (i) => !this.sectionUnlocked(this.worldIndex, i) || !!this.levelErrors[this.worldIndex + ":0"],
+        pick: (i) => this.startLevel(this.worldIndex, 0, i),
+        back: () => this.setState("worlds"),
+      });
       case "controls":
-        if (Input.menuPressed("confirm") || Input.menuPressed("back") || Input.clicks.length) { sfx.play("menu"); this.setState("title"); }
+        this.lastPage = "controls";
+        if (Input.menuPressed("confirm") || Input.menuPressed("back") || Input.clicks.some((c) => this.hit(c, this.backRect))) this.leavePage();
         return;
+      case "codex": {
+        this.lastPage = "codex";
+        const n = Guide.TABS.length;
+        const tab = (d) => { this.codexTab = (this.codexTab + d + n) % n; this.codexPage = 0; sfx.play("menu"); };
+        if (Input.menuPressed("left") || Input.pressed("weaponPrev")) tab(-1);
+        if (Input.menuPressed("right") || Input.pressed("weaponNext")) tab(1);
+        if (Input.menuPressed("up")) this.codexPage = Math.max(0, this.codexPage - 1);
+        if (Input.menuPressed("down")) this.codexPage++;
+        if (Input.menuPressed("back")) { this.leavePage(); return; }
+        const R = this.codexRects || {};
+        for (const c of Input.clicks) {
+          if (this.hit(c, R.back)) { this.leavePage(); return; }
+          if (this.hit(c, R.prev)) { this.codexPage = Math.max(0, this.codexPage - 1); sfx.play("menu"); }
+          if (this.hit(c, R.next)) { this.codexPage++; sfx.play("menu"); }
+          (R.tabs || []).forEach((r, i) => { if (this.hit(c, r)) { this.codexTab = i; this.codexPage = 0; sfx.play("menu"); } });
+        }
+        return;
+      }
       case "pause":
         if (Input.pressed("pause")) { this.state = "play"; return; }
         break;
@@ -226,41 +432,45 @@ const Game = {
     }
   },
 
-  updateSelect() {
-    const n = Registry.levels.length;
+  /** Shared keyboard / mouse / touch handling for card grids. */
+  updateCards(n, h) {
     const perRow = 5;
     const prev = this.selIndex;
-    if (Input.menuPressed("left")) this.selIndex = (this.selIndex - 1 + n) % n;
-    if (Input.menuPressed("right")) this.selIndex = (this.selIndex + 1) % n;
-    if (Input.menuPressed("up")) this.selIndex = Math.max(0, this.selIndex - perRow);
-    if (Input.menuPressed("down")) this.selIndex = Math.min(n - 1, this.selIndex + perRow);
+    if (n > 0) {
+      if (Input.menuPressed("left")) this.selIndex = (this.selIndex - 1 + n) % n;
+      if (Input.menuPressed("right")) this.selIndex = (this.selIndex + 1) % n;
+      if (Input.menuPressed("up")) this.selIndex = Math.max(0, this.selIndex - perRow);
+      if (Input.menuPressed("down")) this.selIndex = Math.min(n - 1, this.selIndex + perRow);
+    }
     if (this.selIndex !== prev) sfx.play("menu");
-    if (Input.menuPressed("back")) { sfx.play("menu"); this.setState("title"); return; }
+    if (Input.menuPressed("back")) { sfx.play("menu"); h.back(); return; }
     let go = Input.menuPressed("confirm");
     for (const c of Input.clicks) {
-      if (this.backRect && c.x >= this.backRect.x && c.x <= this.backRect.x + this.backRect.w && c.y >= this.backRect.y && c.y <= this.backRect.y + this.backRect.h) {
-        this.setState("title"); return;
-      }
-      this.cardRects.forEach((r, i) => {
-        if (c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h) {
+      const r = this.backRect;
+      if (r && c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h) { sfx.play("menu"); h.back(); return; }
+      this.cardRects.forEach((cr, i) => {
+        if (c.x >= cr.x && c.x <= cr.x + cr.w && c.y >= cr.y && c.y <= cr.y + cr.h) {
           if (this.selIndex === i || Input.touchMode) go = true;
           this.selIndex = i;
         }
       });
     }
-    if (go && this.isUnlocked(this.selIndex) && !this.levelErrors[this.selIndex]) {
+    if (go && n > 0 && !h.locked(this.selIndex)) {
       sfx.play("menuConfirm");
-      this.startLevel(this.selIndex);
+      h.pick(this.selIndex);
     }
   },
 
-  /** ?debug&level=3&x=120 → jump straight into level 3 at tile column 120. */
+  /** ?debug&level=3&x=120 (&world=1) → jump straight into a level at tile column 120. */
   debugStart() {
     const q = new URLSearchParams(location.search);
     if (q.has("touch")) { Input.touchMode = true; Input.layoutButtons(); } // preview touch UI
+    if (q.has("select")) this.setState("select");
+    if (q.has("worlds")) this.setState("worlds");
+    const wi = (parseInt(q.get("world"), 10) || 1) - 1;
     const lv = parseInt(q.get("level"), 10);
     const col = parseInt(q.get("x"), 10);
-    if (lv > 0) this.startLevel(lv - 1);
+    if (lv > 0) this.startLevel(wi, lv - 1);
     if (lv > 0 && col >= 0 && this.world) {
       const w = this.world, p = w.player;
       // Find the first standable spot in that column (air above solid).
@@ -285,7 +495,7 @@ const Game = {
     if (Input.pressed("debugNext")) {
       // Teleport to the next checkpoint / boss / exit to the right.
       const targets = w.entities
-        .filter((e) => ["checkpoint", "exit", "warden", "mainframe"].includes(e.name) && e.x > p.x + 64)
+        .filter((e) => (["checkpoint", "exit"].includes(e.name) || e.isBoss) && e.x > p.x + 64)
         .sort((a, b) => a.x - b.x);
       const t = targets[0];
       if (t) { p.x = t.x - 40; p.y = t.y + t.h - p.h - 4; p.vx = p.vy = 0; w.camera.snap(p); }
@@ -300,24 +510,24 @@ const Game = {
       case "pause":
         this.drawPlay(ctx, true);
         this.dim(ctx, 0.6);
-        UI.text(ctx, "PAUSED", VIEW_W / 2, 140, { size: 44, align: "center", glow: "#00f0ff" });
-        this.menu.draw(ctx, VIEW_W / 2, 180, this.time);
-        UI.text(ctx, UI.keys("{move} move   {jump} jump   {dash} dash   {shoot} fire"), VIEW_W / 2, 512, { size: 13, align: "center", color: "#7f9fc0", weight: "normal" });
+        UI.text(ctx, "PAUSED", VIEW_W / 2, 84, { size: 40, align: "center", glow: "#00f0ff" });
+        this.menu.draw(ctx, VIEW_W / 2, 112, this.time);
         break;
       case "gameover":
         this.world.draw(ctx);
         this.dim(ctx, 0.65);
         UI.text(ctx, "SYSTEM FAILURE", VIEW_W / 2, 150, { size: 48, align: "center", color: "#ff4d6d", glow: "#ff3355" });
-        UI.text(ctx, `Deaths this run: ${this.world.deaths}`, VIEW_W / 2, 186, { size: 15, align: "center", color: "#ffb3c0", weight: "normal" });
         this.menu.draw(ctx, VIEW_W / 2, 220, this.time, "#ff4d6d");
         break;
       case "complete": this.drawComplete(ctx); break;
       case "victory": this.drawVictory(ctx); break;
+      case "worlds": this.drawMenuBg(ctx); this.drawWorlds(ctx); break;
       case "select": this.drawMenuBg(ctx); this.drawSelect(ctx); break;
-      case "controls": this.drawMenuBg(ctx); this.drawControls(ctx); break;
+      case "controls": this.drawPageBg(ctx); this.drawControls(ctx); break;
+      case "codex": this.drawPageBg(ctx); this.drawCodex(ctx); break;
       case "reset":
         this.drawMenuBg(ctx);
-        UI.text(ctx, "ERASE ALL PROGRESS?", VIEW_W / 2, 200, { size: 32, align: "center", color: "#ff4d6d", glow: "#ff3355" });
+        UI.text(ctx, "ERASE PROGRESS?", VIEW_W / 2, 200, { size: 32, align: "center", color: "#ff4d6d", glow: "#ff3355" });
         this.menu.draw(ctx, VIEW_W / 2, 250, this.time, "#ff4d6d");
         break;
       case "title": this.drawMenuBg(ctx); this.drawTitle(ctx); break;
@@ -337,7 +547,6 @@ const Game = {
     w.draw(ctx);
     if (!paused) {
       UI.drawHUD(ctx, w);
-      UI.drawBossBarTouch(ctx, w);
       UI.drawHint(ctx, w);
       Input.drawTouch(ctx);
     }
@@ -373,7 +582,6 @@ const Game = {
     const sy = 60 + ((t * 2) % 160);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(VIEW_W / 2 - 220, sy, 440, 3);
-    UI.text(ctx, "A DATA-STREAM PLATFORMER", VIEW_W / 2, 216, { size: 14, align: "center", color: "#7fb8d8", weight: "normal" });
     this.menu.draw(ctx, VIEW_W / 2, 250, t);
     // Little robot mascot idling on the left.
     const bx = 170, by = 420 + Math.sin(t * 0.05) * 4;
@@ -381,95 +589,173 @@ const Game = {
     ctx.fillStyle = "#14203c"; U.roundRect(ctx, bx - 24, by - 30, 48, 56, 10); ctx.fill();
     ctx.strokeStyle = "#00f0ff"; ctx.lineWidth = 3; ctx.stroke();
     ctx.fillStyle = "#00f0ff"; ctx.fillRect(bx - 16, by - 16, 32, 8);
-    const loadErr = this.loadErrors.length;
-    const lvlErr = Object.keys(this.levelErrors).length;
-    if (loadErr || lvlErr) {
-      UI.text(ctx, `⚠ ${loadErr} file(s) failed to load, ${lvlErr} level(s) invalid — see browser console (F12)`, VIEW_W / 2, VIEW_H - 16, { size: 12, align: "center", color: "#ff4d6d", weight: "normal" });
-    } else {
-      UI.text(ctx, "v1.0  ·  progress saves automatically", VIEW_W / 2, VIEW_H - 16, { size: 12, align: "center", color: "#4f6f8f", weight: "normal" });
+    const errs = this.loadErrors.length + Object.keys(this.levelErrors).length + Object.keys(this.worldErrors).length;
+    if (errs) {
+      UI.text(ctx, `⚠ ${errs} error(s) — see console`, VIEW_W / 2, VIEW_H - 16, { size: 12, align: "center", color: "#ff4d6d", weight: "normal" });
     }
   },
 
-  drawControls(ctx) {
-    UI.text(ctx, "CONTROLS", VIEW_W / 2, 80, { size: 36, align: "center", glow: "#00f0ff" });
-    UI.panel(ctx, 160, 110, 640, 330);
-    const rows = [
-      ["MOVE", "← → / A D"],
-      ["JUMP", "SPACE / ↑ / W / Z  (hold = higher)"],
-      ["WALL-JUMP", "jump while sliding on a wall"],
-      ["DROP DOWN", "↓ + JUMP on thin platforms"],
-      ["DASH", "SHIFT / X  (unlocked in level 2)"],
-      ["PULSE SHOT", "F / C / J  (unlocked in level 3)"],
-      ["PAUSE / MUTE", "ESC / P  ·  M toggles sound"],
-      ["TOUCH", "on-screen buttons appear on touch devices"],
-    ];
-    rows.forEach(([a, b], i) => {
-      UI.text(ctx, a, 200, 150 + i * 36, { size: 16, color: "#00f0ff" });
-      UI.text(ctx, b, 380, 150 + i * 36, { size: 16, weight: "normal" });
-    });
-    UI.text(ctx, "Stomp most robots. Some need a different tactic — watch them!", VIEW_W / 2, 470, { size: 14, align: "center", color: "#ffd23d", weight: "normal" });
-    UI.text(ctx, "Press ENTER / ESC or tap to go back", VIEW_W / 2, 505, { size: 13, align: "center", color: "#7f9fc0", weight: "normal" });
+  drawPageBg(ctx) {
+    if (this.pageFrom === "pause" && this.world) { this.world.draw(ctx); this.dim(ctx, 0.88); }
+    else this.drawMenuBg(ctx);
   },
 
-  drawSelect(ctx) {
-    const L = Registry.levels;
-    UI.text(ctx, "LEVEL SELECT", VIEW_W / 2, 70, { size: 34, align: "center", glow: "#00f0ff" });
-    const perRow = 5, cw = 164, ch = 220, gap = 16;
-    const rowsN = Math.ceil(L.length / perRow);
-    const totalW = Math.min(L.length, perRow) * (cw + gap) - gap;
-    const x0 = VIEW_W / 2 - totalW / 2, y0 = rowsN > 1 ? 100 : 130;
+  /** Back button shared by the pages. */
+  drawBack(ctx, x, y) {
+    this.backRect = { x, y, w: 150, h: 36 };
+    UI.panel(ctx, x, y, 150, 36);
+    UI.text(ctx, "◀ BACK", x + 75, y + 24, { size: 15, align: "center" });
+    return this.backRect;
+  },
+
+  /** Every action, keyboard and touch — built from Guide.controlRows(), so new
+   *  abilities appear automatically. */
+  drawControls(ctx) {
+    UI.text(ctx, "CONTROLS", VIEW_W / 2, 46, { size: 30, align: "center", glow: "#00f0ff" });
+    const p = this.pageFrom === "pause" && this.world ? this.world.player : null;
+    const { base, abil } = Guide.controlRows(p);
+    const touch = Input.touchMode;
+    const table = (x, w, title, rows) => {
+      UI.panel(ctx, x, 64, w, 404);
+      UI.text(ctx, title, x + 14, 88, { size: 13, color: "#ffd23d" });
+      UI.text(ctx, "KEYBOARD", x + w * 0.5, 88, { size: 11, color: touch ? "#4a5a70" : "#a8c8e0" });
+      UI.text(ctx, "TOUCH", x + w * 0.8, 88, { size: 11, color: touch ? "#a8c8e0" : "#4a5a70" });
+      rows.forEach((r, i) => {
+        const y = 114 + i * 28;
+        UI.text(ctx, r.name, x + 14, y, { size: 12, color: r.dim ? "#4a5a70" : "#00f0ff" });
+        UI.text(ctx, r.key, x + w * 0.5, y, { size: 12, weight: "normal", color: r.dim ? "#4a5a70" : touch ? "#7f9fc0" : "#dff6ff" });
+        UI.text(ctx, r.touch, x + w * 0.8, y, { size: 12, weight: "normal", color: r.dim ? "#4a5a70" : touch ? "#dff6ff" : "#7f9fc0" });
+      });
+    };
+    table(24, 440, "BASICS", base);
+    table(484, 452, "ABILITIES", abil);
+    const ws = p ? p.weapons : Save.data.weapons;
+    if (ws && ws.length) UI.text(ctx, `WEAPONS: ${ws.map((n) => (Registry.weapons[n] || {}).label || n).join("  ")}`, 38, 114 + base.length * 28 + 8, { size: 11, weight: "normal", color: "#a8c8e0" });
+    this.drawBack(ctx, VIEW_W / 2 - 75, 484);
+  },
+
+  /** Help / Codex: tabs of everything discovered so far, icon + one line each. */
+  drawCodex(ctx) {
+    UI.text(ctx, "HELP / CODEX", VIEW_W / 2, 42, { size: 28, align: "center", glow: "#00f0ff" });
+    const tabs = Guide.TABS, tw = 112, tx0 = VIEW_W / 2 - (tabs.length * tw) / 2;
+    const R = (this.codexRects = { tabs: [] });
+    tabs.forEach((t, i) => {
+      const r = { x: tx0 + i * tw + 2, y: 56, w: tw - 4, h: 30 };
+      R.tabs.push(r);
+      const on = i === this.codexTab;
+      ctx.fillStyle = on ? "rgba(0,240,255,0.18)" : "rgba(8,12,30,0.75)";
+      U.roundRect(ctx, r.x, r.y, r.w, r.h, 6); ctx.fill();
+      ctx.strokeStyle = on ? "#00f0ff" : "rgba(0,240,255,0.25)"; ctx.lineWidth = on ? 2 : 1; ctx.stroke();
+      UI.text(ctx, t, r.x + r.w / 2, r.y + 20, { size: 12, align: "center", color: on ? "#ffffff" : "#a8c8e0" });
+    });
+    const { total, list } = Guide.entries(tabs[this.codexTab]);
+    const per = 10, pages = Math.max(1, Math.ceil(list.length / per));
+    this.codexPage = U.clamp(this.codexPage, 0, pages - 1);
+    UI.text(ctx, `${list.length} / ${total} FOUND`, VIEW_W - 30, 106, { size: 11, align: "right", color: "#7f9fc0" });
+    if (!list.length) UI.text(ctx, "Nothing here yet. Keep exploring!", VIEW_W / 2, 260, { size: 16, align: "center", color: "#7f9fc0" });
+    list.slice(this.codexPage * per, this.codexPage * per + per).forEach((en, i) => {
+      const x = 30 + (i % 2) * 455, y = 114 + Math.floor(i / 2) * 70;
+      UI.panel(ctx, x, y, 445, 62, "#00f0ff", 0.72);
+      ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(x + 8, y + 7, 48, 48);
+      en.icon(ctx, x + 32, y + 31);
+      if (en.name) UI.text(ctx, en.name, x + 66, y + 22, { size: 14, color: "#00f0ff" });
+      ctx.font = `normal 12px ${FONT}`;
+      const lines = UI.wrap(ctx, en.desc, 365).slice(0, en.name ? 2 : 3);
+      lines.forEach((l, k) => UI.text(ctx, l, x + 66, y + (en.name ? 40 : 24) + k * 15, { size: 12, weight: "normal", color: "#dff6ff" }));
+    });
+    this.drawBack(ctx, 30, 482);
+    R.back = this.backRect;
+    if (pages > 1) {
+      R.prev = { x: VIEW_W / 2 - 110, y: 482, w: 44, h: 36 };
+      R.next = { x: VIEW_W / 2 + 66, y: 482, w: 44, h: 36 };
+      for (const [r, t] of [[R.prev, "◀"], [R.next, "▶"]]) { UI.panel(ctx, r.x, r.y, r.w, r.h); UI.text(ctx, t, r.x + r.w / 2, r.y + 24, { size: 15, align: "center" }); }
+      UI.text(ctx, `${this.codexPage + 1} / ${pages}`, VIEW_W / 2, 506, { size: 14, align: "center" });
+    } else { R.prev = R.next = null; }
+    UI.text(ctx, Input.touchMode ? "tap a tab" : "← → tabs   ↑ ↓ pages   ESC back", VIEW_W - 30, 506, { size: 11, align: "right", color: "#4a5a70", weight: "normal" });
+  },
+
+  /**
+   * Shared card grid (world select + level select).
+   * cards: [{ num, name, theme, locked, bad, lines: [[text, color]], empty }]
+   */
+  drawCards(ctx, title, cards) {
+    const perRow = 5, rowsN = Math.max(1, Math.ceil(cards.length / perRow));
+    const compact = rowsN > 1;
+    const cw = 164, ch = compact ? 168 : 220, gap = compact ? 14 : 16;
+    UI.text(ctx, title, VIEW_W / 2, compact ? 58 : 70, { size: compact ? 28 : 34, align: "center", glow: "#00f0ff" });
+    const totalW = Math.min(cards.length, perRow) * (cw + gap) - gap;
+    const x0 = VIEW_W / 2 - totalW / 2, y0 = compact ? 80 : 130;
+    const Y = compact
+      ? { sw: 8, swH: 52, num: 48, name: 80, msg: 116, stats: [102, 120, 138, 156] }
+      : { sw: 10, swH: 70, num: 60, name: 106, msg: 150, stats: [140, 160, 180, 200] };
     this.cardRects = [];
-    L.forEach((def, i) => {
+    cards.forEach((c, i) => {
       const x = x0 + (i % perRow) * (cw + gap), y = y0 + Math.floor(i / perRow) * (ch + gap);
       this.cardRects.push({ x, y, w: cw, h: ch });
-      const unlocked = this.isUnlocked(i), sel = i === this.selIndex, bad = this.levelErrors[i];
-      const acc = bad ? "#ff4d6d" : (def.theme && def.theme.accent) || "#00f0ff";
+      const sel = i === this.selIndex, th = c.theme || {};
+      const acc = c.bad ? "#ff4d6d" : th.accent || "#00f0ff";
       ctx.fillStyle = sel ? U.rgba(acc, 0.16) : "rgba(8,12,30,0.8)";
       U.roundRect(ctx, x, y, cw, ch, 10); ctx.fill();
       ctx.strokeStyle = sel ? acc : U.rgba(acc, 0.3); ctx.lineWidth = sel ? 3 : 1; ctx.stroke();
-      // Mini theme swatch.
-      const g = ctx.createLinearGradient(0, y + 10, 0, y + 80);
-      g.addColorStop(0, (def.theme && def.theme.bgTop) || "#050818");
-      g.addColorStop(1, (def.theme && def.theme.bgBottom) || "#0a1a3a");
-      ctx.fillStyle = g; ctx.fillRect(x + 10, y + 10, cw - 20, 70);
-      ctx.fillStyle = acc; ctx.fillRect(x + 10, y + 78, cw - 20, 2);
-      UI.text(ctx, String(i + 1).padStart(2, "0"), x + cw / 2, y + 60, { size: 34, align: "center", color: unlocked ? "#ffffff" : "#33445a" });
-      UI.text(ctx, def.name.toUpperCase(), x + cw / 2, y + 106, { size: 13, align: "center", color: unlocked ? acc : "#4a5a70" });
-      if (bad) {
-        UI.text(ctx, "INVALID LEVEL", x + cw / 2, y + 140, { size: 12, align: "center", color: "#ff4d6d" });
-        UI.text(ctx, "see console (F12)", x + cw / 2, y + 160, { size: 11, align: "center", color: "#ff9db0", weight: "normal" });
-      } else if (!unlocked) {
-        UI.text(ctx, "LOCKED", x + cw / 2, y + 150, { size: 14, align: "center", color: "#4a5a70" });
-      } else {
-        const b = Save.data.best[def.id];
-        if (b) {
-          UI.text(ctx, `TIME  ${U.fmtTime(b.time)}`, x + 14, y + 140, { size: 12, color: "#a8c8e0", weight: "normal" });
-          UI.text(ctx, `CORES ${b.cores}/${b.coresTotal}`, x + 14, y + 160, { size: 12, color: "#a8c8e0", weight: "normal" });
-          UI.text(ctx, `SECRET ${b.secrets}/${b.secretsTotal}`, x + 14, y + 180, { size: 12, color: "#ffe9a0", weight: "normal" });
-          UI.text(ctx, `DEATHS ${b.deaths}`, x + 14, y + 200, { size: 12, color: "#ffb3c0", weight: "normal" });
-        } else {
-          UI.text(ctx, "NOT CLEARED", x + cw / 2, y + 150, { size: 12, align: "center", color: "#7f9fc0" });
-        }
-      }
+      const g = ctx.createLinearGradient(0, y + Y.sw, 0, y + Y.sw + Y.swH);
+      g.addColorStop(0, th.bgTop || "#050818");
+      g.addColorStop(1, th.bgBottom || "#0a1a3a");
+      ctx.fillStyle = g; ctx.fillRect(x + 10, y + Y.sw, cw - 20, Y.swH);
+      ctx.fillStyle = acc; ctx.fillRect(x + 10, y + Y.sw + Y.swH - 2, cw - 20, 2);
+      UI.text(ctx, c.num, x + cw / 2, y + Y.num, { size: compact ? 28 : 34, align: "center", color: c.locked ? "#33445a" : "#ffffff" });
+      UI.text(ctx, c.name.toUpperCase(), x + cw / 2, y + Y.name, { size: compact ? 12 : 13, align: "center", color: c.locked ? "#4a5a70" : acc });
+      if (c.bad) UI.text(ctx, "INVALID", x + cw / 2, y + Y.msg, { size: 12, align: "center", color: "#ff4d6d" });
+      else if (c.locked) UI.text(ctx, "LOCKED", x + cw / 2, y + Y.msg, { size: 14, align: "center", color: "#4a5a70" });
+      else if (c.lines && c.lines.length) c.lines.forEach(([t, col], k) => UI.text(ctx, t, x + 14, y + Y.stats[k], { size: 12, weight: "normal", color: col }));
+      else UI.text(ctx, "—", x + cw / 2, y + Y.msg, { size: 14, align: "center", color: "#7f9fc0" });
     });
-    const by = y0 + rowsN * (ch + gap) + 10;
+    const by = y0 + rowsN * (ch + gap) + (compact ? 0 : 10);
     this.backRect = { x: VIEW_W / 2 - 80, y: by, w: 160, h: 36 };
     UI.panel(ctx, this.backRect.x, by, 160, 36);
     UI.text(ctx, "◀ BACK", VIEW_W / 2, by + 24, { size: 15, align: "center" });
-    UI.text(ctx, Input.touchMode ? "Tap a level to play" : "← → choose · ENTER play · ESC back", VIEW_W / 2, VIEW_H - 18, { size: 13, align: "center", color: "#7f9fc0", weight: "normal" });
+  },
+
+  drawWorlds(ctx) {
+    const cards = Registry.worlds.map((w, i) => {
+      const prog = Save.world(w.id);
+      const def = w.levelDefs[0], b = def && Save.best(w.id, def.id);
+      const secs = (def && def.sections && def.sections.length) || 1;
+      return {
+        num: String(i + 1), name: w.name, theme: w.theme,
+        locked: !this.worldUnlocked(i), bad: !!this.worldErrors[i],
+        lines: [[`SECTIONS ${Math.min(secs, (prog.reached || 0) + 1)}/${secs}`, "#a8c8e0"],
+          [`BEST   ${b ? U.fmtTime(b.time) : "—"}`, "#a8c8e0"],
+          [`BOSS   ${prog.bossBeaten ? "✓" : "—"}`, prog.bossBeaten ? "#7dff4a" : "#7f9fc0"]],
+      };
+    });
+    this.drawCards(ctx, "WORLDS", cards);
+  },
+
+  /** Section select: a world's level, part by part. Section 1 starts from the
+   *  beginning; reached sections can be replayed from their first checkpoint. */
+  drawSelect(ctx) {
+    const w = this.worldDef(), def = this.levelsOf()[0];
+    const kinds = { intro: "NEW IDEA", combine: "MIX", challenge: "CHALLENGE", boss: "BOSS", rest: "REST" };
+    const cards = this.sectionsOf().map((sec, i) => ({
+      num: String(i + 1), name: sec.name,
+      theme: Object.assign({}, w.theme || {}, (def && def.theme) || {}, sec.theme || {}),
+      locked: !this.sectionUnlocked(this.worldIndex, i), bad: !!this.levelErrors[this.worldIndex + ":0"],
+      lines: [[kinds[sec.kind] || "", sec.kind === "boss" ? "#ff8ad8" : "#a8c8e0"]],
+    }));
+    this.drawCards(ctx, w ? w.name.toUpperCase() : "SECTIONS", cards);
   },
 
   drawComplete(ctx) {
     this.world.draw(ctx);
     this.dim(ctx, 0.7);
     const info = this.completeInfo, s = info.stats;
-    UI.text(ctx, "SECTOR CLEARED", VIEW_W / 2, 92, { size: 44, align: "center", color: "#d8ffcc", glow: "#7dff4a" });
+    UI.text(ctx, info.worldClear ? "WORLD CLEAR" : "CLEARED", VIEW_W / 2, 92, { size: 44, align: "center", color: "#d8ffcc", glow: "#7dff4a" });
     UI.text(ctx, info.name.toUpperCase(), VIEW_W / 2, 122, { size: 15, align: "center", color: "#7dff4a" });
     UI.panel(ctx, VIEW_W / 2 - 220, 140, 440, 150, "#7dff4a");
     const rows = [
-      ["TIME", U.fmtTime(s.time) + (info.isBest ? "   NEW BEST!" : "")],
-      ["ENERGY CORES", `${s.cores} / ${s.coresTotal}` + (s.cores === s.coresTotal && s.coresTotal ? "   ALL!" : "")],
-      ["SECRET CORES", `${s.secrets} / ${s.secretsTotal}`],
+      ["TIME", U.fmtTime(s.time) + (info.isBest ? "  BEST" : "")],
+      ["CORES", `${s.cores} / ${s.coresTotal}`],
+      ["SECRETS", `${s.secrets} / ${s.secretsTotal}`],
       ["DEATHS", String(s.deaths)],
     ];
     rows.forEach(([a, b], i) => {
@@ -477,10 +763,11 @@ const Game = {
       UI.text(ctx, b, VIEW_W / 2 + 196, 174 + i * 32, { size: 16, align: "right" });
     });
     let y = 312;
-    for (const u of info.newUnlocks) {
-      const inf = UPGRADE_INFO[u] || { name: u, how: "" };
-      UI.text(ctx, `UPGRADE UNLOCKED: ${inf.name}`, VIEW_W / 2, y, { size: 18, align: "center", color: "#ffd23d", glow: "#ffd23d" });
-      UI.text(ctx, UI.keys(inf.how), VIEW_W / 2, y + 20, { size: 13, align: "center", color: "#ffe9a0", weight: "normal" });
+    const gains = info.newUnlocks.map((u) => UPGRADE_INFO[u] || { name: u, how: "" })
+      .concat((info.newWeapons || []).map((n) => ({ name: (Registry.weapons[n] && Registry.weapons[n].label) || n, how: "{swap}" })));
+    for (const inf of gains) {
+      UI.text(ctx, `+ ${inf.name}`, VIEW_W / 2, y, { size: 18, align: "center", color: "#ffd23d", glow: "#ffd23d" });
+      if (inf.how) UI.text(ctx, UI.keys(inf.how), VIEW_W / 2, y + 20, { size: 13, align: "center", color: "#ffe9a0", weight: "normal" });
       y += 46;
     }
     this.menu.draw(ctx, VIEW_W / 2, Math.max(y + 4, 350), this.time, "#7dff4a");
@@ -490,21 +777,19 @@ const Game = {
     this.drawMenuBg(ctx);
     const t = this.time;
     for (let i = 0; i < 3; i++) U.glow(ctx, VIEW_W / 2 + Math.sin(t * 0.02 + i * 2) * 200, 180 + Math.cos(t * 0.03 + i) * 40, 120, ["#00f0ff", "#ff3df0", "#7dff4a"][i], 0.3);
-    UI.text(ctx, "MAINFRAME LIBERATED", VIEW_W / 2, 110, { size: 46, align: "center", color: "#ffffff", glow: "#00f0ff" });
-    UI.text(ctx, "The grid hums quietly again. UNIT-01 powers down, mission complete.", VIEW_W / 2, 150, { size: 15, align: "center", color: "#a8c8e0", weight: "normal" });
+    UI.text(ctx, "SYSTEM RESTORED", VIEW_W / 2, 110, { size: 46, align: "center", color: "#ffffff", glow: "#00f0ff" });
     let time = 0, cores = 0, coresT = 0, sec = 0, secT = 0, deaths = 0;
-    for (const def of Registry.levels) {
-      const b = Save.data.best[def.id];
+    for (const w of Registry.worlds) for (const def of w.levelDefs) {
+      const b = Save.best(w.id, def.id);
       if (!b) continue;
       time += b.time; cores += b.cores; coresT += b.coresTotal; sec += b.secrets; secT += b.secretsTotal; deaths += b.deaths;
     }
     UI.panel(ctx, VIEW_W / 2 - 220, 180, 440, 140, "#00f0ff");
-    [["TOTAL BEST TIME", U.fmtTime(time)], ["CORES", `${cores} / ${coresT}`], ["SECRETS", `${sec} / ${secT}`], ["FEWEST DEATHS", String(deaths)]]
+    [["TIME", U.fmtTime(time)], ["CORES", `${cores} / ${coresT}`], ["SECRETS", `${sec} / ${secT}`], ["DEATHS", String(deaths)]]
       .forEach(([a, b], i) => {
         UI.text(ctx, a, VIEW_W / 2 - 196, 212 + i * 30, { size: 16, color: "#00f0ff" });
         UI.text(ctx, b, VIEW_W / 2 + 196, 212 + i * 30, { size: 16, align: "right" });
       });
-    if (sec < secT) UI.text(ctx, "Some secret cores are still hidden behind suspicious walls…", VIEW_W / 2, 346, { size: 13, align: "center", color: "#ffd23d", weight: "normal" });
     this.menu.draw(ctx, VIEW_W / 2, 370, t);
   },
 };

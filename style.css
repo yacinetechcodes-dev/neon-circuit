@@ -5,9 +5,17 @@ html, body {
   background: #02030a;
   overflow: hidden;
   touch-action: none;
+  overscroll-behavior: none;       /* no pull-to-refresh / bounce */
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;     /* no long-press menu */
+  -webkit-text-size-adjust: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  position: fixed;                 /* iOS: stop the page from scrolling */
+  inset: 0;
 }
 
 body {
@@ -22,6 +30,25 @@ body {
   outline: none;
   box-shadow: 0 0 60px rgba(0, 240, 255, 0.08);
   image-rendering: auto;
+}
+
+/* Phones held upright: ask for landscape. */
+#rotate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: #02030a;
+  color: #00f0ff;
+  font: bold 20px monospace;
+  text-align: center;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.8;
+}
+#rotate span { font-size: 48px; }
+@media (orientation: portrait) and (hover: none) and (pointer: coarse) {
+  #rotate { display: flex; }
 }
 
 noscript {

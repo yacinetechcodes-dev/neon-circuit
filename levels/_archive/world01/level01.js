@@ -49,12 +49,7 @@ registerLevel({
     {at: [139,13], range: 2},
   ],
   scripts: [
-    {at: [4,0], size: [1,18], actions: [{type: "hint", text: "{move} to move — grab the energy cores!", time: 4}]},
-    {at: [28,0], size: [1,18], actions: [{type: "hint", text: "{jump} to jump — hold it longer to jump higher", time: 4}]},
-    {at: [49,0], size: [1,18], actions: [{type: "hint", text: "Mind the gaps! Falling costs 1 health", time: 4}]},
-    {at: [78,0], size: [1,18], actions: [{type: "hint", text: "Jump on top of robots to defeat them", time: 4}]},
-    {at: [101,0], size: [1,18], actions: [{type: "hint", text: "Jump up through thin platforms. {down} + {jump} drops down", time: 5}]},
-    {at: [128,0], size: [1,18], actions: [{type: "hint", text: "Spikes hurt — jump over them!", time: 4}]},
-    {at: [196,0], size: [1,18], actions: [{type: "hint", text: "Step into the exit portal to finish the sector", time: 4}]},
+    {at: [2,0], size: [1,18], actions: [{type: "hint", text: "{move} move · {jump} jump", key: "basics", time: 3}]},
+    {at: [101,0], size: [1,18], actions: [{type: "hint", text: "{down} + {jump}: drop", key: "drop", time: 2.5}]},
   ],
 });

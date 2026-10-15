@@ -74,12 +74,8 @@ registerLevel({
     {at: [192,17], arena: [172,2,30,17], hp: 6},
   ],
   scripts: [
-    {at: [4,0], size: [1,22], actions: [{type: "hint", text: "New upgrade: press {dash} to DASH — it smashes through enemies", time: 5}]},
-    {at: [14,0], size: [1,22], actions: [{type: "hint", text: "Spikers can't be stomped — {dash} through them!", time: 4}]},
-    {at: [34,0], size: [1,22], actions: [{type: "hint", text: "Lasers blink — watch the warning flicker and time your run", time: 4}]},
-    {at: [62,0], size: [1,22], actions: [{type: "hint", text: "Crushers slam down. Electric floors spark — don't stand on them!", time: 4}]},
-    {at: [96,0], size: [1,22], actions: [{type: "hint", text: "Turrets fire at you. Climb to the upper exit on the right", time: 4}]},
+    {at: [4,0], size: [1,22], actions: [{type: "hint", text: "{dash}: dash", key: "dash", time: 2.5}]},
     {at: [161,0], size: [1,22], actions: [{type: "pan", to: [190,14], time: 2}, {type: "shake", amount: 4}]},
-    {at: [176,0], size: [1,22], actions: [{type: "hint", text: "Its armor is tough. Bait the CHARGE into a wall, then strike!", time: 5}]},
+    {at: [176,0], size: [1,22], actions: [{type: "hint", text: "Make it crash into a wall", key: "warden", time: 2.5}]},
   ],
 });

@@ -2,17 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#050818">
   <title>Neon Circuit</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <canvas id="game" width="960" height="540" tabindex="0" aria-label="Neon Circuit game"></canvas>
+  <div id="rotate"><div><span>⟳</span><br>Turn your phone sideways to play</div></div>
   <noscript>Neon Circuit needs JavaScript enabled.</noscript>
 
   <!-- Engine (order matters) -->
   <script src="core/util.js"></script>
+  <script src="core/gfx.js"></script>
   <script src="core/sfx.js"></script>
   <script src="core/registry.js"></script>
   <script src="core/input.js"></script>
@@ -21,14 +25,19 @@
   <script src="core/camera.js"></script>
   <script src="core/level.js"></script>
   <script src="core/physics.js"></script>
+  <script src="core/background.js"></script>
   <script src="core/render.js"></script>
   <script src="core/world.js"></script>
+  <script src="core/weapons.js"></script>
   <script src="core/ui.js"></script>
+  <script src="core/guide.js"></script>
+  <script src="core/minimap.js"></script>
   <script src="core/engine.js"></script>
 
-  <!-- Manifests: list the entity + level files to load -->
+  <!-- Manifests: entity, weapon and world files to load (worlds list their levels) -->
   <script src="entities/index.js"></script>
-  <script src="levels/index.js"></script>
+  <script src="weapons/index.js"></script>
+  <script src="worlds/index.js"></script>
 
   <!-- Loads everything listed above, validates levels, starts the game -->
   <script src="core/loader.js"></script>

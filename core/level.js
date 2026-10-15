@@ -87,7 +87,37 @@ const LevelLoader = {
       }
     }
     if (def.gravity != null && !(def.gravity > 0)) errors.push("gravity must be a positive number.");
+
+    // Sections: contiguous column ranges covering the map, each named, each
+    // with a checkpoint; a world's boss belongs in the last one.
+    if (def.sections) this._checkSections(def, legend, width, errors, warnings);
     return this._report(tag, errors, warnings);
+  },
+
+  _checkSections(def, legend, width, errors, warnings) {
+    const secs = def.sections;
+    if (!Array.isArray(secs) || !secs.length) { errors.push("sections must be a non-empty array."); return; }
+    const kinds = ["intro", "combine", "challenge", "rest", "boss"];
+    const colsOf = (test) => {
+      const cols = [];
+      def.map.forEach((row) => { for (let c = 0; c < row.length; c++) { const v = legend[row[c]]; if (v && test(String(v).split(":")[0])) cols.push(c); } });
+      return cols;
+    };
+    const cps = colsOf((n) => n === "checkpoint" || n === "playerStart");
+    const bosses = colsOf((n) => Registry.entities[n] && Registry.entities[n].props && Registry.entities[n].props.isBoss);
+    let next = 0;
+    secs.forEach((s, i) => {
+      const t = `section ${i + 1} "${s.name || "?"}"`;
+      if (!s.name) errors.push(`section ${i + 1} has no name.`);
+      if (!(s.to >= s.from)) { errors.push(`${t} needs from <= to.`); return; }
+      if (s.from !== next) errors.push(`${t} starts at column ${s.from}, expected ${next} (sections must be contiguous).`);
+      next = s.to + 1;
+      if (s.kind && !kinds.includes(s.kind)) warnings.push(`${t} has unknown kind "${s.kind}".`);
+      if (!cps.some((c) => c >= s.from && c <= s.to)) warnings.push(`${t} has no checkpoint.`);
+    });
+    if (next !== width) errors.push(`sections end at column ${next - 1}, but the map is ${width} columns wide.`);
+    const last = secs[secs.length - 1];
+    if (bosses.length && !bosses.some((c) => c >= last.from && c <= last.to)) warnings.push("the last section has no boss.");
   },
 
   _report(tag, errors, warnings) {

@@ -59,11 +59,9 @@ registerLevel({
   entityOverrides: [
   ],
   scripts: [
-    {at: [8,0], size: [1,22], actions: [{type: "hint", text: "Chargers are armored. Make them crash into a wall, then strike!", time: 5}]},
-    {at: [36,0], size: [1,22], actions: [{type: "hint", text: "LOW GRAVITY ZONE — jumps go much higher and farther", time: 4}]},
-    {at: [76,0], size: [1,22], actions: [{type: "hint", text: "Pink crystals refill your dash in mid-air. Chain {dash} → crystal → {dash}!", time: 6}]},
-    {at: [101,0], size: [1,22], actions: [{type: "hint", text: "Orange platforms drop soon after you land — keep moving!", time: 4}]},
-    {at: [122,0], size: [1,22], actions: [{type: "hint", text: "Sentinels block shots and dashes from the front. Stomp them or hit their back", time: 5}]},
-    {at: [172,0], size: [1,22], actions: [{type: "hint", text: "Float up the tower — careful, the ceiling is spiked", time: 4}]},
+    {at: [2,0], size: [1,22], actions: [{type: "hint", text: "{shoot}: fire", key: "shoot", time: 2.5}]},
+    {at: [10,0], size: [1,22], actions: [{type: "hint", text: "Make chargers crash", key: "charger", time: 2.5}]},
+    {at: [76,0], size: [1,22], actions: [{type: "hint", text: "Crystals refill dash", key: "crystal", time: 2.5}]},
+    {at: [122,0], size: [1,22], actions: [{type: "hint", text: "Sentinels: hit from behind", key: "sentinel", time: 2.5}]},
   ],
 });
